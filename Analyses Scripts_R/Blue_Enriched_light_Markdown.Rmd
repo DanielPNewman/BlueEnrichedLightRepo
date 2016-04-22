@@ -1,0 +1,1994 @@
+---
+title: "Blue_Enriched_light_Markdown"
+author: "Daniel Newman"
+date: "8 July 2015"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: yes
+  word_document: default
+---
+
+## This data is from an experiment conducted as part of Daniel P Newman's PhD at Monash University. The experiment was conceived in order to test whether ocular exposure to Blue Enriched light modulates behavioural and electrophysiological markers of spatial attention bias
+
+**Background:** Alert healthy subjects typically exhibit a subtle bias of spatial attention favouring left space. This bias is attenuated, or shifted rightwards, under conditions of decreased alertness. This is consistent with theoretical models proposing that a right-hemisphere-lateralised ventral 'alertness' network regulates inter-hemispheric rivalry in the bilateral dorsal orienting network. Ocular exposure to short wavelength blue enriched white light (max ~480nm) can result in increased alertness and overt behavioural improvements during cognitive tasks.  Here we tested the hypothesis that prior exposure to higher, relative to lower, intensities of blue enriched white light would promote the direction of attention to left space, as measured by behavioural and electrophysiological indices.  
+
+**Methods:** Healthy participants (N=24) were exposed to three blue enriched light intensities (low/medium/high- 50/350/1400lux, respectively) in a counterbalanced repeated-measures design over 72 separate sessions.  Sessions began 13.5 hours after waking and comprised 10 min dark adaptation, then 1 hour of light exposure followed by a ~36 min spatial attention task.   Behavioural and EEG indices of spatial attention were deriv. 
+
+
+```{r Load and Pre-Process the Data, echo=FALSE, include=FALSE}
+####Which computer/directory is this being run on?
+location<-"Monash"
+# location<-"DansLaptop"
+
+if (location=="Monash") {
+    setwd(("C:/GitHub/BlueEnrichedLightRepo/Analyses Scripts_R"))
+} else if (location=="DansLaptop") {
+    setwd(("C:/Users/Dan/Documents/GitHub/BlueEnrichedLightRepo/Analyses Scripts_R"))
+} else setwd(("~"))
+
+
+
+####################################
+#######  How to use ################
+####################################
+
+# 1) Install the packages and software specified below. (consider also updating all installed packages by chosing Update on the Packages tab)
+# 2) Set the working directory (setwd) above, and directory where you have "data_ParticipantLevel", "master_matrix_R" and "ID_vector" saved
+# 3) Hit Knit Word (or Knit HTML)! 
+
+
+####################################
+######  FIRST TIME ONLY ############
+####################################
+
+#Remove # in front of the line below and run the code. Replace the # after installing the packages, otherwise the R markdown script will give errors.
+
+# install.packages(c("MASS", "akima", "robustbase", "cobs", "robust", "mgcv", "scatterplot3d", "quantreg", "rrcov", "lars", "pwr", "trimcluster", "mc2d", "psych", "Rfit","MBESS", "BayesFactor", "PoweR", "ggplot2", "reshape2", "plyr", "devtools", "rmarkdown","gmodels", "HLMdiag", "car", "gridExtra", "bootES", "BEST","foreign","nlme","pastecs","multcomp","ggplot2","compute.es","ez","lattice","lme4","effects","diagram","png", "grid","lmerTest", "LMERConvenienceFunctions"))
+
+#Installation of the robust statistics package: Remove # in front of each of 4 lines below and run the code. Replace the # after installing the packages, otherwise the R markdown script will give errors.
+
+# install.packages("devtools")
+# library("devtools")
+# install_github("mrxiaohe/WRScpp")
+# install_github("nicebread/WRS", subdir="pkg")
+
+# Install RePsychLing to use the Random Slopes The principal components analysis (PCA) function rePCA()
+# devtools::install_github("dmbates/RePsychLing")
+
+#Download and install JAGS to calculate Bayesian HDI: http://sourceforge.net/projects/mcmc-jags/
+
+###################################################################################################################################
+
+## Install relevant libraries 
+library(foreign)
+library(car)
+library(ggplot2)
+library(pastecs)
+library(psych)
+library(plyr)
+library(multcomp)
+library(reshape2)
+library(compute.es)
+library(ez)
+library(lattice)
+library(lme4)
+library(png)
+library(grid)
+library(RePsychLing)
+library(LMERConvenienceFunctions)
+
+############  Download and Import single trial data:
+# data <- read.csv("C:/Users/Dan/Documents/GitHub/BlueEnrichedLightRepo/Analyses Scripts_Matlab/master_matrix_R.csv", header=FALSE)
+# data <- read.csv("C:/GitHub/BlueEnrichedLightRepo/Analyses Scripts_Matlab/master_matrix_R.csv", header=FALSE)
+url <- "https://raw.githubusercontent.com/DanielPNewman/BlueEnrichedLightRepo/master/Analyses%20Scripts_Matlab/master_matrix_R.csv"
+f <- file.path(getwd(), "master_matrix_R.csv")
+download.file(url, f)
+data<-read.csv(f, header=FALSE)
+
+
+############ Download and Import IDs:
+# ID <- read.table("C:/Users/Dan/Documents/GitHub/BlueEnrichedLightRepo/Analyses Scripts_Matlab/ID_vector.csv", quote="\"")
+# ID <- read.table("C:/GitHub/BlueEnrichedLightRepo/Analyses Scripts_Matlab/ID_vector.csv", quote="\"")
+url <- "https://raw.githubusercontent.com/DanielPNewman/BlueEnrichedLightRepo/master/Analyses%20Scripts_Matlab/ID_vector.csv"
+f <- file.path(getwd(), "ID_vector.csv")
+download.file(url, f)
+ID<-read.csv(f, header=FALSE)
+
+#Add ID vector to "data" dataframe
+data$IDnum<-data[,1]
+#Replace the participant numbers with IDs:
+data[,1]<-ID[,1]
+#Remove the seperate ID vector now it has been included into data dataframe
+rm(ID)
+#Rename data columns:
+data<-rename(data, c("V1"="ID", "V2"="Light","V3"="TotalTrialNumber","V4"="Trial","V5"="ITI",
+                     "V6"="Hemifield","V7"="VerticalVisualField","V8"="MotionDirection",
+                     "V9"="Accuracy","V10"="FixationBreak","V11"="Artefact500msPre",
+                     "V12"="ArtefactPost","V13"="Artefact1000msPre","V14"="RejectedTrial",
+                     "V15"="RT","V16"="PreAlphaPower","V17"="PreAlphaPower_LeftHemi",
+                     "V18"="PreAlphaPower_RightHemi","V19"="PreAlphaAsym","V20"="PrePupilDiameter",
+                     "V21"="Sex","V22"="Age","V23"="NumberRepeatedTrials",
+                     "V24"="LightCondOrder","V25"="KSS_BeforeMinusAfter","V26"="LightCondsGuessedCorrectly",
+                     "V27"="LightCondsGuessed_Confidence","V28"="Session","V29"="Quadrant",
+                     "V30"="PreAlphaPower_all_PO_chans"))
+             
+#Make the required columns into factors:
+data$Light <- factor(data$Light)
+data$ITI <- factor(data$ITI)
+data$Hemifield <- factor(data$Hemifield)
+data$VerticalVisualField <- factor(data$VerticalVisualField)
+data$MotionDirection <- factor(data$MotionDirection)
+data$Sex <- factor(data$Sex)
+data$LightCondOrder <- factor(data$LightCondOrder)
+data$Session <- factor(data$Session)
+data$Accuracy <- factor(data$Accuracy)
+data$LightCondsGuessedCorrectly <- factor(data$LightCondsGuessedCorrectly)
+data$Quadrant<-factor(data$Quadrant)
+#Rename factor Levels:
+data$Light <- revalue(data$Light, c("1"="Low", "2"="Medium", "3"="High"))
+data$ITI <- revalue(data$ITI, c("1"="1800ms", "2"="2800ms", "3"="3800ms"))
+data$Hemifield <- revalue(data$Hemifield, c("1"="Left", "2"="Right"))
+data$VerticalVisualField <- revalue(data$VerticalVisualField, c("1"="Upper", "2"="Lower"))
+data$MotionDirection <- revalue(data$MotionDirection, c("1"="Uppward", "2"="Downward"))
+data$Sex <- revalue(data$Sex, c("1"="Male", "2"="Female"))
+data$LightCondOrder <- revalue(data$LightCondOrder, c("1"="HML", "2"="HLM", "3"="MHL", "4"="MLH", "5"="LHM","6"="LMH"))
+data$Session <- revalue(data$Session, c("1"="One", "2"="Two", "3"="Three"))
+data$Accuracy <- revalue(data$Accuracy, c("1"="Hit", "0"="Miss"))
+data$LightCondsGuessedCorrectly <- revalue(data$LightCondsGuessedCorrectly, c("0"="No", "1"="Yes"))
+data$Quadrant<-revalue(data$Quadrant, c("1"="Left_Upper", "2"="Right_Upper", "3"="Left_Lower", "4"="Right_Lower"))
+#Re-class required vectors into Logicals:
+data$FixationBreak<-as.logical(data$FixationBreak)
+data$Artefact500msPre<-as.logical(data$Artefact500msPre)
+data$ArtefactPost<-as.logical(data$ArtefactPost)
+data$Artefact1000msPre<-as.logical(data$Artefact1000msPre)
+data$RejectedTrial<-as.logical(data$RejectedTrial)
+#Order any ordinal factors (may have to do this the "trail" or "validTrialNum" later too) 
+# data$Light<-ordered(data$Light, levels = c("Low", "Medium", "High"))  #won't make light ordered, becasue by defult R uses polynomial contrasts for ordered factors, I'd rather treat light as unordered and to "treatment" contrasts, i.e. Low vs Med, Low vs High
+data$Session <- ordered(data$Session, levels = c("One", "Two", "Three")) 
+data$ITI <- ordered(data$ITI, levels = c("1800ms", "2800ms", "3800ms"))  
+
+
+############  Download and Import Participant Level data:
+# data_ParticipantLevel <- read.csv("C:/Users/Dan/Documents/GitHub/BlueEnrichedLightRepo/Analyses Scripts_R/ParticipantLevelMatrix_R.csv", header=FALSE)
+# data_ParticipantLevel <- read.csv("C:/GitHub/BlueEnrichedLightRepo/Analyses Scripts_R/ParticipantLevelMatrix_R.csv", header=FALSE)
+url <- "https://raw.githubusercontent.com/DanielPNewman/BlueEnrichedLightRepo/master/Analyses%20Scripts_R/ParticipantLevelMatrix_R.csv"
+f <- file.path(getwd(), "ParticipantLevelMatrix_R.csv")
+download.file(url, f)
+data_ParticipantLevel<-read.csv(f, header=FALSE)
+
+
+#Rename data_ParticipantLevel columns:
+data_ParticipantLevel<-rename(data_ParticipantLevel, c("V1"="ID", "V2"="Light",
+                                                        "V3"="LightCondOrder","V4"="LightCondsGuessedCorrectly",
+                                                        "V5"="LightCondsGuessed_Confidence", "V6"="Age",
+                                                       "V7"="Sex","V8"="KSS_BeforeMinusAfter","V9"="Session"))
+#Make the required columns into factors:
+data_ParticipantLevel$ID <- factor(data_ParticipantLevel$ID)
+data_ParticipantLevel$Light <- factor(data_ParticipantLevel$Light)
+data_ParticipantLevel$Sex <- factor(data_ParticipantLevel$Sex)
+data_ParticipantLevel$LightCondOrder <- factor(data_ParticipantLevel$LightCondOrder)
+data_ParticipantLevel$LightCondsGuessedCorrectly <- factor(data_ParticipantLevel$LightCondsGuessedCorrectly)
+data_ParticipantLevel$Session <- factor(data_ParticipantLevel$Session)
+#Rename factor Levels:
+data_ParticipantLevel$Light <- revalue(data_ParticipantLevel$Light, c("1"="Low", "2"="Medium", "3"="High"))
+data_ParticipantLevel$Sex <- revalue(data_ParticipantLevel$Sex, c("1"="Male", "2"="Female"))
+data_ParticipantLevel$LightCondOrder <- revalue(data_ParticipantLevel$LightCondOrder, c("1"="HML", "2"="HLM", "3"="MHL", "4"="MLH", "5"="LHM","6"="LMH"))
+data_ParticipantLevel$Session <- revalue(data_ParticipantLevel$Session, c("1"="One", "2"="Two", "3"="Three"))
+data_ParticipantLevel$LightCondsGuessedCorrectly <- revalue(data_ParticipantLevel$LightCondsGuessedCorrectly, c("0"="No", "1"="Yes"))
+
+
+###############Data Cleaning For Single Trial Data######################
+
+#Remove trials with fixation-breaks and rejected trials
+data<-data[!data$FixationBreak,]
+data<-data[!data$RejectedTrial,]
+
+
+#Check number of Trials for each participant by running the function 'length', 
+#on "data$RT" for each group, broken down by ID + Light
+num_trials1 <- ddply(data, c("ID", "Light"), summarise,
+               Trials    = length(RT))
+#Create a new factor Participant x Light condition
+data$IDbyLight<-interaction(data$ID, data$Light) #ID by Light factor (splits data up according to session)
+#Create a variable numbering all the valid trials
+data$ValidTrialNum<-(matrix(unlist(tapply(data[,1], data$IDbyLight, seq_along)), nrow=length(data[,1]), byrow=T))
+data$ValidTrialNum<-c(data$ValidTrialNum) #change if from a one dimensional materix to a vector
+
+
+#####Calculate Accuracy by ID and Light Condition####
+data$IDbyLight<-interaction(data$ID, data$Light) #ID by Light factor (splits data up according to session)
+
+Accuracy_checker <- ddply(data, c("ID", "Light"), summarise,
+               Hits  = sum(Accuracy=="Hit"),
+               Misses = sum(Accuracy=="Miss"))
+Accuracy_checker$Total=Accuracy_checker$Hits+Accuracy_checker$Misses
+Accuracy_checker$Accuracy=(Accuracy_checker$Hits/Accuracy_checker$Total)*100
+
+#Remove trials where RT=0 (i.e. they did not respond)
+data<-data[data$RT!=0,]
+
+#Remove trials where RT longer than 1000ms (i.e. after target finished)
+data<-data[data$RT<1001,]
+#Remove trials where RT faster than 100ms (i.e. too fast must be false alarm)
+data<-data[data$RT>200,]
+
+############################################ Log transform:
+data$log_RT<-log(data$RT) #log
+###########################################################
+
+
+#plot again after outlier removal:
+ggplot(data, aes(RT))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_RT <- ggplot(data, aes(RT))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_RT + facet_wrap(~ ID)
+
+
+#####Z-score each participant's log_RT data inside Light Condition####
+data$IDbyLight<-interaction(data$ID, data$Light) #ID by Light factor (splits data up according to session)
+#calculate mean and sd 
+m <- tapply(data$log_RT,data$IDbyLight,mean)
+s <- sqrt(tapply(data$log_RT,data$IDbyLight,var))
+#calculate log_RT.Z and save it inside data.frame
+data$RT.Z <- (data$log_RT-m[data$IDbyLight])/s[data$IDbyLight]
+#check that Z scores have mean=0 and std=1 
+RT.Z_checker <- ddply(data, c("ID", "Light"), summarise,
+                      N    = length(RT.Z ),
+                      mean = round(mean(RT.Z )),
+                      sd   = sd(RT.Z ),
+                      se   = sd / sqrt(N))
+##Remove trials where absolute RT.Z>3 (i.e. remove outlier RTs)
+data<-data[!abs(data$RT.Z)>3,]
+
+
+
+#plot again after outlier removal:
+ggplot(data, aes(RT))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_RT <- ggplot(data, aes(RT))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_RT + facet_wrap(~ ID)
+
+
+
+#Make PostAlpha contralateral (PostAlpha_c) and -Ipsilateral (PostAlpha_i) variables:
+A<-data$Hemifield=="Left"
+data$PostAlpha_c[A]<-data$RightHemi_PostAlpha[A]
+data$PostAlpha_c[!A]<-data$LeftHemi_PostAlpha[!A]
+data$PostAlpha_i[!A]<-data$LeftHemi_PostAlpha[!A]
+data$PostAlpha_i[A]<-data$RightHemi_PostAlpha[A]
+rm(A)
+
+control=lmerControl(optCtrl=list(maxfun=20000)) #increase number of interations performed by lmer() to fit the model 
+
+```
+
+##Target detection accuracy was at ceiling (97.4%)
+
+```{r, message=FALSE}
+summary(Accuracy_checker$Accuracy)
+```
+
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+
+
+
+##Higher light intensity speeds target detection, specifically to left-hemifield targets
+
+###Crossed vs Nested Factors 
+
+**There were 6 possible order combinations of the 3 light conditions that participants could be exposed to. Each participant was exposed to the light conditions in one of the 6 possible orders ("LightCondOrder"), in a counterbalanced manner. Because each Participant ("ID")" occurs within one and only one level of LightCondOrder we say that ID is nested within LightCondOrder:**
+```{r, warning=FALSE}
+#Show that ID is nested inside LightCondOrder:
+with(data, isNested(ID,LightCondOrder))
+
+# The following table show which level of LightCondOrder (either HML, HLM, MHL, MLH, LHM or LMH) each participant is nested inside. The numbers '986 etc.' represent the total single trial RTs each participant has remaining after misses and outliers are removed (each participant did 3 light sessions with 336 trials in each session)
+xtabs(~ ID + LightCondOrder, data, drop = TRUE, sparse = TRUE)
+```
+
+**The rest of the factors (ITI, MotionDirection, Hemifield, etc) are crossed or partially crossed factors, "crossed" means that they have an observation for each combination level each of the other factors (some factors might be partially crossed in some participants in the EEG analysis if there is a lot of data missing due to EEG artifacts etc).** 
+
+##Now, we make a multilevel model to test the fixed effects of Light, Hemifield (i.e. target hemifield) and their interaction on Response-time (RT):
+
+For Multilevel modeling with the lme4 package, nested factors are represended with random intercepts like this "...+(1 | LightCondOrder/ID).." - which means ID is nested inside LightCondOrder", while crossed and partially cross factors are represented with random intercepts like this ... +(1 |Light) +(1|ITI) +(1|MotionDirection) + (1|Hemifield)+ etc. Here I'm testing the fixed effects of Light and Hemifield and their interaction on RT, this is represented like this "....Light + Hemifield + Light:Hemifield"
+
+Idealy I'll also add a by-subjects random slopes for each of the the fixed effect factors. By-subjects random slope reduce inflation of type 1 errors when using lmer() see Barr, Levy, Scheepers, & Tily, (2013). Random effects structure for confirmatory hypothesis testing: Keep it maximal. Journal of Memory and Language, 68(3), 255-278.So full by-subjects random slope for Light and Hemifield would be specified like this "...+(Light + Hemifield | LightCondOrder/ID)"
+
+We have included Barr et al., (2013)'s recommendations into the current analysis. Even after following Barr et al.'s suggestions for dealing with non-convergence by removing outliers, and increasing the maximum number of iterations in the estimation procedure, the maximal did would not converge. Therefore we followed Barr et al.'s final strategy for coping with non-convergence by developing the random effects structure in a principled way and keeping those random effects that improved model fit and do not lead to convergence failures. It should be noted that more recent work on this topic (Bates, Kliegl, Vasishth, & Baayen, 2015; Matuschek, Kliegl, Vasishth, Baayen, & Bates, 2015) has highlighted the fact that Barr et al., (2013)'s "Keep it Maximal" recommendation is not always ideal, even in cases when  maximal models do converge. Matuschek et al., (2015) show that fitting the maximal random slope model can cause an overly conservative type I error rate  and therefore significantly decreases statistical power, even when the model converges and the data's generating process matches the maximal model, if variance components were not well supported by the data. These authors, which include researchers at the forefront of this field of statistics, explain that "the simulations on which Barr et al. (2013) base their recommendation are both too simple and too atypical for real data to support the claim that maximal random effects structure is desirable.........the maximal model in many analyses of data from Psychology and Linguistics experiments, is almost always shown by this analysis to be degenerate, ..the advice to "keep it maximal" often creates hopelessly over-specified random effects because the number of correlation parameters to estimate rises quickly with the dimension of the random-effects vectors." 
+Indeed, Barr et al. (2013)'s own methods included simplifying the random effects structure to random intercepts only when the model failed to converge (see Barr et al. 2013; p 266).    Therefore, we identified a parsimonious random effect structure for our re-analysis using an iterative procedure which employed likelihood ratio tests to compare models without each particular random effect versus the model including the random effect, and retaining only the random effects which both improved the model fit and did not lead to non-convergence. This leads to the inclusion of a by-subjects random slope of Hemifield, and by-subjects random slope pre-target alpha power (when it is a predictor of RT), but no random slopes of Light. Random intercepts for the crossed factors are also included.
+
+
+```{r, echo=FALSE, warning=FALSE}
+################ Change to contrast type
+# options(contrasts=c("contr.sum","contr.poly")) #set categorical non-ordered contrasts to "deviation" contrasts using "contr.sum"  
+# R's defult contrasts are:
+options(contrasts = c("contr.treatment", "contr.poly"))
+```
+
+
+### Maximal linear mixed model  
+
+
+```{r m0}
+summary(m0 <-lmer(RT ~ 1 + Light + Hemifield + Hemifield:Light +
+                                          (Light + Hemifield + Hemifield:Light | LightCondOrder/ID) + 
+                                          (1|Light) +
+                                          (1|ITI) +
+                                          (1|MotionDirection) + 
+                                          (1|Quadrant) + 
+                                          (1|ValidTrialNum), 
+                                 data = data, REML=FALSE, na.action = na.omit))
+#Model failed to converge
+# maxfun < 10 * length(par)^2 is not recommended.
+# convergence code 1 from bobyqa: bobyqa -- maximum number of function evaluations exceeded
+
+
+```
+
+Warning messages " maxfun < 10 * length(par)^2 is not recommended" and 
+"Model failed to converge with max|grad| = 0.00775512 (tol = 0.002, component 1)"
+Means that the model is overparameterized and will not produce accurate parameter estimates
+
+
+*According to Bates et al. (2015) One option to reduce the complexity of the maximal model is to force correlation parameters to zero. lets try that:*
+
+```{r m1}
+m0v2 <-lmer(RT ~ 1 + Light + Hemifield + Hemifield:Light +
+                                          (Light + Hemifield + Hemifield:Light || LightCondOrder/ID) + 
+                                          (1|Light) +
+                                          (1|ITI) +
+                                          (1|MotionDirection) + 
+                                          (1|Quadrant) + 
+                                          (1|ValidTrialNum), 
+                                 data = data, REML=FALSE, na.action = na.omit)
+#Model failed to converge
+# maxfun < 10 * length(par)^2 is not recommended.
+# convergence code 1 from bobyqa: bobyqa -- maximum number of function evaluations exceeded
+# unable to evaluate scaled gradient
+# Model failed to converge: degenerate  Hessian with 3 negative eigenvalues
+```
+Model still failed to converge: degenerate  Hessian with 1 negative eigenvalues
+maxfun < 10 * length(par)^2 is not recommended.
+
+**In order to try get the model to converge, try identified a random effect structure using the Trembley (2015)s forward-fitting procedure from LMERConvenienceFunctions package. This is an iterative model fitting procedure that retains the random effects that improve the model's fit and removes random effects that lead to failure to converge**
+```{r m1_and_m2}
+# install.packages("LMERConvenienceFunctions")
+require(LMERConvenienceFunctions)
+
+# fit basic model, just the fixed effects and random intercepts of Participants nested inside LightCondOrder
+m1 <- lmer(RT ~ 1 + Hemifield + Light + Hemifield:Light + 
+                       (1|LightCondOrder/ID), 
+           data = data, REML=FALSE, na.action = na.omit)
+
+
+# Use " ffRanefLMER.fnc" to run forward fitting of the random effects terms
+  ffRanefLMER.fnc(model = m1, ran.effects = c( "(1|Light)",
+                                               "(1|ITI)",
+                                               "(1|MotionDirection)", 
+                                               "(1|Quadrant)",
+                                               "(1|ValidTrialNum)",
+                                               "(0+Hemifield | ID)", 
+                                               "(0+Light | ID)"), log.file = FALSE)
+
+
+#Final Model:
+# RT ~ Light + Hemifield + Light:Hemifield + (1 | LightCondOrder/ID) + (1 | ITI) +  (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID):
+summary(m2<-lmer(RT ~ 1 +  Light + Hemifield + Hemifield:Light + 
+                              (1 | LightCondOrder/ID) + 
+                              (1 | ITI) + 
+                              (1 | MotionDirection) + 
+                              (1 | Quadrant) + 
+                              (0 + Hemifield | ID), 
+                          data = data , REML=FALSE, na.action = na.omit))
+
+## Use Likelihood ratio test's to test each of the main effects and their interaction against the null hypothesis:
+RT_no_fixed_effects<-lmer(RT ~ 1 + 
+                              (1 | LightCondOrder/ID) + 
+                              (1 | ITI) + 
+                              (1 | MotionDirection) + 
+                              (1 | Quadrant) + 
+                              (0 + Hemifield | ID), 
+                          data = data, REML=FALSE, na.action = na.omit)
+RT_Hemifield<-update(RT_no_fixed_effects, .~. + Hemifield)
+RT_Light<-update(RT_Hemifield, .~. + Light)
+RT_HemifieldbyLight<-update(RT_Hemifield, .~. + Light:Hemifield)
+anova(RT_no_fixed_effects,RT_Hemifield,RT_Light,RT_HemifieldbyLight)
+
+## Or use Satterthwaite approximation to
+# degrees of freedom through the lmerTest package
+# (Kuznetsova, Krockhoff, & Rune, 2015).:
+# summary(m3<-lmerTest::lmer(RT ~ 1 + Hemifield + Light +  Light:Hemifield + 
+#                               (1 | LightCondOrder/ID) + 
+#                               (1 | ITI) + 
+#                               (1 | MotionDirection) + 
+#                               (1 | Quadrant) + 
+#                               (0 + Hemifield | ID), 
+#                           data = data, REML=FALSE, na.action = na.omit))
+
+
+
+```
+
+
+**So a significant effect of Light and a significant Light x Hemifield interaction. Lets plot these effects:**
+
+```{r, echo=FALSE, warning=FALSE}
+
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(data, measurevar="RT", withinvars=c("Light", "Hemifield"), idvar="ID")
+ggplot(plotdata, aes(x=Hemifield, y=RT, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") + 
+    theme(legend.key = element_rect(), legend.key.width = unit(0.5, "cm"), legend.key.height = unit(0.35, "cm")) +
+    scale_fill_manual(name="Intensity of Prior\nLight Exposure", labels=c(" Low (~50 lux)", " Medium (~350 lux)", " High (~1400 lux)"), values=cbPalette) +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=RT-ci, ymax=RT+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) + coord_cartesian(ylim = c(450, 510)) +
+    xlab("Hemifield") + ylab("Response-time (ms)") +
+    theme(axis.title.x = element_text(face="bold", size=12),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=12),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=11, face="bold")) +
+    theme(legend.text = element_text(size = 11, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))  
+
+
+
+####Plot the significant Light by Hemifield interaction:
+#Bar Graph:
+#SE Standard error of the mean as Error Bars instead
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(data, measurevar="RT", withinvars=c("Light", "Hemifield"), idvar="ID")
+RT_BarGraph<-ggplot(plotdata, aes(x=Hemifield, y=RT, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") + 
+    theme(legend.key = element_rect(), legend.key.width = unit(0.5, "cm"), legend.key.height = unit(0.35, "cm")) +
+    scale_fill_manual(name="Intensity of Prior\nLight Exposure", labels=c(" Low (~50 lux)", " Medium (~350 lux)", " High (~1400 lux)"), values=cbPalette) +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=RT-ci, ymax=RT+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) + coord_cartesian(ylim = c(450, 510)) +
+    xlab("Hemifield") + ylab("Response-time (ms)") +
+    theme(axis.title.x = element_text(face="bold", size=12),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=12),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=11, face="bold")) +
+    theme(legend.text = element_text(size = 11, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))  
+
+    # ggtitle("Response-time by Target Hemifield and\n Prior Light Exposure Intensity)")+
+    # theme(plot.title = element_text(lineheight=.8, face="bold", size=18)) +
+```
+
+*So higher light intensities improved Response-times to left hemifield targets and not right hemifield targets. See simple effect stats below*
+
+**Test the effect of Light inside left targets only:**
+```{r, echo=FALSE, warning=FALSE}
+# Full model was:
+#  RT ~ Light + Hemifield + Light:Hemifield + (1 | LightCondOrder/ID) + (1 | ITI) +  (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID) 
+summary(glht(lmer(RT ~ 1 + Light + (1 | LightCondOrder/ID) +(1|ITI) +(1|MotionDirection) + (1|Quadrant), data=data[data$Hemifield=="Left",], REML=FALSE, na.action = na.omit), linfct=mcp(Light="Tukey")))
+
+```
+
+**Test the effect of Light inside Right targets only:**
+```{r, echo=FALSE, warning=FALSE}
+summary(glht(lmer(RT ~ 1 + Light + (1 | LightCondOrder/ID) +(1|ITI) +(1|MotionDirection) + (1|Quadrant), data=data[data$Hemifield=="Right",], REML=FALSE, na.action = na.omit), linfct=mcp(Light="Tukey")))
+```
+
+**There is no  effect of light on right hemifield targets. So this is really cool, higher light intensities improved Response-times to left hemifield targets and not right hemifield targets** 
+
+
+###Does VerticalVisualField (upper vs lower patch) influence the Light and Hemifield effects?
+```{r, echo=FALSE, warning=FALSE}
+#Add the relevant fixed effects
+RT_VerticalVisualField<-update(RT_HemifieldbyLight, .~. + VerticalVisualField)
+RT_HemifieldbyVerticalVisualField<-update(RT_VerticalVisualField, .~. + Hemifield:VerticalVisualField)
+RT_VerticalVisualFieldbyLight<-update(RT_HemifieldbyVerticalVisualField, .~. + VerticalVisualField:Light)
+RT_HemifieldbyLightbyVerticalVisualField<-update(RT_VerticalVisualFieldbyLight, .~. + Hemifield:Light:VerticalVisualField)
+anova(RT_HemifieldbyLight,RT_VerticalVisualField,RT_HemifieldbyVerticalVisualField,RT_VerticalVisualFieldbyLight,RT_HemifieldbyLightbyVerticalVisualField)
+
+#So there is only main effect of VerticalVisualField and no interactions. Note we did not include random slopes of VerticalVisualField here, since there were no significant interactions with VerticalVisualField when random slopes of VerticalVisualField, there will definetly be none if we did include random slopes. BUT we still need try to add Random slope of VerticalVisualField within-subjects and see if there main effect of VerticalVisualField is still significant once random slopes added.
+RS<-update(RT_HemifieldbyLight, .~. + (0+VerticalVisualField| ID))
+VerticalVisualField<-update(RS, .~. + VerticalVisualField)
+anova(RS, VerticalVisualField) # main effect still significant once random slopes added.
+
+# Model to test fixed effect of VerticalVisualField converges fine when a by-subjects random slope of VerticalVisualField is added.
+
+```
+The lack of any significant Target Hemifield by Vertical Visual Field by Light interactions, indicates that that effect of Light on left hemifield RTs was consistent regardless of whether the target appeared in the upper or lower dot patch
+
+
+###Does the effect of light on RT diminish over time-on-task (TOT)?
+
+**First test if TOT moderates the effect of Light on Left-hemifield Targets only:**
+```{r, echo=FALSE, warning=FALSE}
+RT_Light_LeftTargets<-lmer(RT ~ 1 + Light + (1 | LightCondOrder/ID) +(1|ITI) +(1|MotionDirection) + (1|Quadrant) + (1|ValidTrialNum), data=data[data$Hemifield=="Left",], REML=FALSE, na.action = na.omit)
+RT_TOT_LeftTargets<-update(RT_Light_LeftTargets, .~. + ValidTrialNum)
+RT_TOTbyLight_LeftTargets<-update(RT_TOT_LeftTargets, .~. + Light:ValidTrialNum)
+anova(RT_Light_LeftTargets, RT_TOT_LeftTargets, RT_TOTbyLight_LeftTargets)
+
+
+```
+So TOT does not moderate the effect of Light on Left-hemifield Targets indicating that the effect of prior Light exposure on left hemifield RTs persisted over the duration of our attention task. Since there was no significant fixed effects involving TOT when random slopes of TOT were not included, there would definetly be none if we tried to include random slopes of TOT. 
+
+**Now test if time-on-task (TOT) moderates the Hemifield x Light interaction:**
+```{r, echo=FALSE, warning=FALSE}
+RT_TOT<-update(RT_HemifieldbyLight, .~. + ValidTrialNum)
+RT_HemifieldbyTOT<-update(RT_TOT, .~. + Hemifield*ValidTrialNum)
+RT_LightbyTOT<-update(RT_HemifieldbyTOT, .~. + Light*ValidTrialNum)
+RT_HemifieldbyLightbyTOT<-update(RT_LightbyTOT, .~. + Hemifield*Light*ValidTrialNum)
+anova(RT_HemifieldbyLight,RT_TOT,RT_HemifieldbyTOT,RT_LightbyTOT,RT_HemifieldbyLightbyTOT)
+
+#Try adding random slopes for ValidTrialNum and see if the Hemifield*TOT fixed effect interaction is still significant.
+summary(RT_HemifieldbyTOT_RS<-lmer(RT ~ 1 +  Light + Hemifield + Hemifield:Light + ValidTrialNum + Hemifield:ValidTrialNum +
+                                (1 | LightCondOrder/ID) + 
+                                (1 | ITI) + 
+                                (1 | MotionDirection) + 
+                                (1 | Quadrant) + 
+                                (0 + Hemifield | ID) + 
+                                (0 + ValidTrialNum | ID), 
+                             data = data, REML=FALSE, na.action = na.omit))
+#Model failed to converge: degenerate  Hessian with 6 negative eigenvalues
+
+#Since model with random slopes for ValidTrialNum fails to converge, we have to go with 
+summary(RT_HemifieldbyTOT_RS<-lmerTest::lmer(RT ~ 1 +  Light + Hemifield + Hemifield:Light + ValidTrialNum + Hemifield:ValidTrialNum + 
+                                (1 | LightCondOrder/ID) + 
+                                (1 | ITI) + 
+                                (1 | MotionDirection) + 
+                                (1 | Quadrant) + 
+                                (0 + Hemifield | ID), 
+                             data = data, REML=FALSE, na.action = na.omit))
+
+```
+
+And there is no Light x Target Hemifield x Time-on-task interaction on RT, again indicating that the effect of prior Light exposure on left hemifield RTs persisted over the duration of our attention task.
+
+There is a significant Hemifield x TOT interaction, reflecting an effect whereby responses are faster to left than right hemifield targets during the first half of the ~40min session, but this left-hemifield advantage disappears during the second half of the session. This is consistent witht the rightward shift in spatial attention bias over time-on-task reported in many previous studies (e.g. Newman et al 2013). This effect is probably not very relevant for the current study since the effect is not moderated by Light. So will not bother breaking this interaction down and will probably not bother reporting in the paper. Could put it in the supplementary section maybe if we want, if so here is the interactions broken down into simple effects, and also a plot of the interaction:  
+```{r, echo=FALSE, warning=FALSE}
+
+#Simple effect of TOT on Left Hemifield Targets
+summary(glht(RT_LeftHemifield_TOT<-lmer(RT ~ 1 +  ValidTrialNum + 
+                                (1 | LightCondOrder/ID) + 
+                                (1 | ITI) + 
+                                (1 | MotionDirection) + 
+                                (1 | Quadrant), 
+                             data = data[data$Hemifield=="Left",], REML=FALSE, na.action = na.omit)))
+
+
+#Simple effect of TOT on Right Hemifield Targets
+summary(glht(RT_RightHemifield_TOT<-lmer(RT ~ 1 +  ValidTrialNum + 
+                                (1 | LightCondOrder/ID) + 
+                                (1 | ITI) + 
+                                (1 | MotionDirection) + 
+                                (1 | Quadrant), 
+                             data = data[data$Hemifield=="Right",], REML=FALSE, na.action = na.omit)))
+
+
+
+ggplot(data, aes(x=data$ValidTrialNum, y=data$RT,fill=Hemifield,colour=Hemifield)) +
+    stat_smooth(method="glm",level = 0.95,size=1) + # Add a glm smoothed fit curve with 95% confidence region around the three light conditions
+    scale_fill_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("red", "green")) +
+    scale_colour_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("red", "green")) +
+    ylab("RT (ms)") +  xlab("Time On Task (336 trials)") + coord_cartesian(ylim = c(470, 525))+
+    theme(axis.title.x = element_text(face="bold", size=14),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=14),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=14, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))  
+
+
+
+```
+
+
+**Check assumptions for RT model by plotting residuals:**
+```{r, echo=FALSE, warning=FALSE}
+residuals_RT_FinalModel=residuals(RT_HemifieldbyTOT_RS)
+plot(residuals_RT_FinalModel)
+hist(residuals_RT_FinalModel)
+```
+
+
+**Above looks OK, distribution is a little skewed, but not too bad**
+
+
+##Show that the Hemifield*Light interaction for RT data holds up when using the old/"classical" ANOVA, to satisify Reviewer #1's request
+```{r, echo=FALSE, warning=FALSE}
+require(ez)
+
+# options(contrasts=c("contr.sum","contr.poly")) #set categorical non-ordered contrasts to "deviation" contrasts using "contr.sum"  
+# R's defult contrasts are options(contrasts = c("contr.treatment", "contr.poly"))
+# e.g.:
+#     contr.treatment(3)
+#     contr.SAS(3)
+#     contr.helmert(3) 
+#     contr.sum(3)
+#     contr.poly(3)
+# see: http://stats.stackexchange.com/questions/168650/how-to-set-custom-contrasts-with-lmer-in-r
+
+#Run a within subjects ANOVA with LightCondOrder as a covariate
+ezANOVA(
+    data = data
+    , dv = .(RT)
+    , wid = .(ID)
+    , within = .(Light, Hemifield)
+    , within_full = .(Light, Hemifield, ITI, MotionDirection, Quadrant, ValidTrialNum)
+    , within_covariates = NULL
+    , between = NULL
+    , type = 3
+    , detailed = F
+)
+
+```
+
+##Get means and standard errors for the effect of Light on RTs to satisfy Reviewer #1's request
+```{r, echo=FALSE, warning=FALSE}
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+summarySEwithin(data, measurevar="RT", withinvars=c("Light", "Hemifield"), idvar="ID")
+```
+So using the classic ANOVA style analysis the Light:Hemifield interaction is not quite significant, p=0.056. The classic ANOVA has less power then the multilevel modeling approach because it can not describe the participants as being nested inside LightCondOrder as the multilevel modeling approach can.
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+##Light intensity specifically modulates alpha-power over right-hemisphere regions that are sensitive to spatial attention orienting
+
+###First pre-target Alpha Power pooled from all Parieto-Occipital electrodes
+
+**The effect of Light on Pre-target Alpha power:**
+```{r, echo=FALSE, message=FALSE}
+
+data2<-data[!data$Artefact500msPre,]
+
+data2<-data2[data2$PreAlphaPower_all_PO_chans!=0,]
+
+#Plot PreAlphaPower histogram:
+ggplot(data2, aes(PreAlphaPower_all_PO_chans))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_PreAlphaPower <- ggplot(data2, aes(PreAlphaPower_all_PO_chans))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+
+data2$log_PreAlphaPower_all_PO_chans<-log(data2$PreAlphaPower_all_PO_chans) #log
+
+
+#####Z-score each participant's log_PreAlphaPower_all_PO_chans data2 inside Light Condition####
+data2$IDbyLight<-interaction(data2$ID, data2$Light) #ID by Light factor (splits data2 up according to session)
+#calculate mean and sd 
+m <- tapply(data2$log_PreAlphaPower_all_PO_chans,data2$IDbyLight,mean,na.rm=T)
+s <- sqrt(tapply(data2$log_PreAlphaPower_all_PO_chans,data2$IDbyLight,var,na.rm=T))
+#calculate log_PreAlphaPower_all_PO_chans.Z and save it inside data2.frame
+data2$log_PreAlphaPower_all_PO_chans.Z <- (data2$log_PreAlphaPower_all_PO_chans-m[data2$IDbyLight])/s[data2$IDbyLight]
+#check that Z scores have mean=0 and std=1 
+log_PreAlphaPower_all_PO_chans.Z_checker <- ddply(data2, c("ID", "Light"), summarise,
+               N    = length(log_PreAlphaPower_all_PO_chans.Z),
+               mean = round(mean(log_PreAlphaPower_all_PO_chans.Z)),
+               sd   = sd(log_PreAlphaPower_all_PO_chans.Z ),
+               se   = sd / sqrt(N) )
+
+##Remove trials where absolute log_PreAlphaPower_all_PO_chans.Z>3 (i.e. remove outlier log_PreAlphaPower_all_PO_chanss)
+data2<-data2[!abs(data2$log_PreAlphaPower_all_PO_chans.Z)>3,]
+
+#Plot PreAlphaPower histogram again after log transformation
+ggplot(data2, aes(log_PreAlphaPower_all_PO_chans))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_PreAlphaPower <- ggplot(data2, aes(log_PreAlphaPower_all_PO_chans))  + geom_histogram(aes(y=..count..), colour="black", fill="white") 
+hist_PreAlphaPower + facet_wrap(~ ID)
+
+
+  cat("Number of Observations for model:")
+  print(dim(data2)[1])
+
+
+############ model the effects of Light, on Pre-target Alpha Power ########### 
+  
+# IIdentified a random effect structure using the Trembley (2015)s forward-fitting procedure from LMERConvenienceFunctions package. This is an iterative model fitting procedure that retains the random effects that improve the model's fit and removes random effects that lead to failure to converge:
+  
+   #First fit most basic modle with fixed effect of Hemisphere Light and random intercept of Hemisphere nested inside Participants nested inside LightCondOrder
+alpha1<-lmer(log(PreAlphaPower_all_PO_chans) ~ 1 + Light + (1 | LightCondOrder/ID), data = data2, na.action = na.omit, REML = F)
+
+   #Now use "ffRanefLMER.fnc" to run forward fitting of the random effects terms
+ffRanefLMER.fnc(model = alpha1, ran.effects =c("(1 |Light)",
+                                               "(1|ITI)",
+                                               "(1|ValidTrialNum)",
+                                               "(0+Light|ID)"), log.file = FALSE)
+
+# Final Formula: log(PreAlphaPower_all_PO_chans) ~ Light + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | ValidTrialNum)
+
+## Now that we have a parsimonious random effects structure, use Likelihood ratio test's to test each of the main effects and their interaction against the null hypothesis:
+PreAlphaPower_all_PO_chans_no_fixed_effects<-lmer(log(PreAlphaPower_all_PO_chans) ~ 1 + (1 | LightCondOrder/ID) + (1| Light) + (1 | ITI) + (1 | ValidTrialNum), data = data2, na.action = na.omit, REML = F)
+PreAlphaPower_all_PO_chans_Light<-update(PreAlphaPower_all_PO_chans_no_fixed_effects, .~. + Light)
+anova(PreAlphaPower_all_PO_chans_no_fixed_effects, PreAlphaPower_all_PO_chans_Light)
+
+summary(PreAlphaPower_all_PO_chans_Light)
+
+
+contrast.PreAlphaPower_all_PO_chans_Light<-rbind(
+    "LightLow:PreAlphaPower vs LightMedium:PreAlphaPower"  =c(0,1,0),
+    "LightLow:PreAlphaPower vs LightHigh:PreAlphaPower"    =c(0,0,1),
+    "LightMedium:PreAlphaPower vs LightHigh:PreAlphaPower" =c(0,-1,1))
+
+summary(glht(PreAlphaPower_all_PO_chans_Light, contrast.PreAlphaPower_all_PO_chans_Light))
+
+
+```
+
+#################################################################################################
+
+
+###Now test the effect of Light on Pre-target Alpha power, split by hemisphere, with each hemisphere ROI based on Spatial orienting:
+    
+```{r, echo=FALSE, message=FALSE}
+
+#### Make Hemisphere a factor:
+DF<-data.frame(data$ID, data$Light, data$ITI, data$Hemifield, data$PreAlphaPower_LeftHemi,data$PreAlphaPower_RightHemi,data$ValidTrialNum, data$LightCondOrder, data$Artefact500msPre)
+names(DF) <- c("ID", "Light",    "ITI",	"Hemifield","PreAlphaPower_LeftHemi","PreAlphaPower_RightHemi","ValidTrialNum", "LightCondOrder","Artefact500msPre")
+
+DF$LeftHemi<-rep("Left",length(DF[,1]))
+DF$RightHemi<-rep("Right",length(DF[,1]))               
+DF_LeftHemi<-subset(DF, select=c(ID, Light, ITI, Hemifield,PreAlphaPower_LeftHemi,LeftHemi,ValidTrialNum,LightCondOrder,Artefact500msPre))
+DF_RightHemi<-subset(DF, select=c(ID, Light, ITI, Hemifield,PreAlphaPower_RightHemi,RightHemi,ValidTrialNum,LightCondOrder,Artefact500msPre))
+names(DF_LeftHemi)[names(DF_LeftHemi)=="LeftHemi"] <- "Hemisphere"
+names(DF_RightHemi)[names(DF_RightHemi)=="RightHemi"] <- "Hemisphere"
+names(DF_LeftHemi)[names(DF_LeftHemi)=="PreAlphaPower_LeftHemi"] <- "PreAlphaPower"
+names(DF_RightHemi)[names(DF_RightHemi)=="PreAlphaPower_RightHemi"] <- "PreAlphaPower"
+DF<-rbind(DF_LeftHemi,DF_RightHemi)
+rm(DF_LeftHemi,DF_RightHemi)
+DF$Hemisphere <- factor(DF$Hemisphere)
+
+DF<-DF[!DF$Artefact500msPre,]
+
+DF<-DF[DF$PreAlphaPower!=0,]
+
+#Remove trials with missing values :
+DF<-DF[complete.cases(DF),] 
+
+
+
+DF$log_PreAlphaPower<-log(DF$PreAlphaPower) #log
+
+#Kick out outliers
+#####Z-score each participant's log_PreAlphaPower inside Light Condition and Hemisphere####
+DF$IDbyLightbyHemisphere<-interaction(DF$ID, DF$Light, DF$Hemisphere) #ID by Light factor (splits DF up according to session)
+#calculate mean and sd 
+m <- tapply(DF$log_PreAlphaPower,DF$IDbyLightbyHemisphere,mean,na.rm=T)
+s <- sqrt(tapply(DF$log_PreAlphaPower,DF$IDbyLightbyHemisphere,var,na.rm=T))
+#calculate log_PreAlphaPower.Z and save it inside DF.frame
+DF$log_PreAlphaPower.Z <- (DF$log_PreAlphaPower-m[DF$IDbyLightbyHemisphere])/s[DF$IDbyLightbyHemisphere]
+#check that Z scores have mean=0 and std=1 
+log_PreAlphaPower.Z_checker <- ddply(DF, c("ID", "Light","Hemisphere"), summarise,
+               N    = length(log_PreAlphaPower.Z),
+               mean = round(mean(log_PreAlphaPower.Z)),
+               sd   = sd(log_PreAlphaPower.Z ),
+               se   = sd / sqrt(N) )
+##Remove trials where absolute log_PreAlphaPower.Z>3 (i.e. remove outlier log_PreAlphaPowers)
+DF<-DF[!abs(DF$log_PreAlphaPower.Z)>3,]
+
+# REML=FALSE,
+
+  cat("Number of Observations for model:")
+  print(dim(DF)[1])
+
+    
+options(contrasts = c("contr.treatment", "contr.poly"))
+
+############ model the effects of Light, and Hemisphere on Pre-target Alpha Power ########### 
+#Start with a basic model with only fixed effects and random intercepts of Hemisphere nested inside participants nested inside LightCondOrder
+alpha_m1<-lmer(log(PreAlphaPower) ~ 1 + Light + Hemisphere + Hemisphere:Light + (1 | LightCondOrder/ID/Hemisphere), data = DF,  na.action = na.omit, REML=F)
+
+# Use "ffRanefLMER.fnc to run forward fitting of the random effects terms
+ffRanefLMER.fnc(model = alpha_m1, ran.effects = c("(1|Light)",
+                                              "(1|ITI)",
+                                              "(1|ValidTrialNum)",
+                                              "(0 + Hemisphere | ID)", 
+                                              "(0+Light | ID)", 
+                                              "(0+Hemisphere*Light | ID)"), log.file = FALSE)
+
+#Final model: log(PreAlphaPower) ~ Light + Hemisphere + Light:Hemisphere + (1 | LightCondOrder/ID/Hemisphere) + (1 | ITI) + (1 | ValidTrialNum) 
+
+## Now that we have a parsimonious random effects structure, use Likelihood ratio test's to test each of the main effects and their interaction against the null hypothesis:
+PreAlphaPower_no_fixed_effects<-lmer(log(PreAlphaPower) ~ 1 + (1 | LightCondOrder/ID/Hemisphere) +(1|Light) + (1|ITI) + (1|ValidTrialNum), data = DF,  na.action = na.omit, REML=F)
+PreAlphaPower_Light<-update(PreAlphaPower_no_fixed_effects, .~. + Light)
+PreAlphaPower_Hemisphere<-update(PreAlphaPower_Light, .~. + Hemisphere)
+PreAlphaPower_LightbyHemisphere<-update(PreAlphaPower_Hemisphere, .~. + Light*Hemisphere)
+PreAlphaPower_LightbyHemisphere<-update(PreAlphaPower_Hemisphere, .~. + Hemisphere*Light)
+anova(PreAlphaPower_no_fixed_effects, PreAlphaPower_Light,PreAlphaPower_Hemisphere,PreAlphaPower_LightbyHemisphere)
+
+```
+
+**So we have a significant main effect of Light and a Light x Hemisphere interaction on pre-target alpha power**
+
+**So, according to the multilevel model there is a signficant Light by Hemisphere interaction, lets plot it:**
+```{r, echo=FALSE, message=FALSE}
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(DF, measurevar="PreAlphaPower", withinvars=c("Light", "Hemisphere"), idvar="ID")
+ggplot(plotdata, aes(x=Hemisphere, y=PreAlphaPower, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") + 
+    theme(legend.key = element_rect(), legend.key.width = unit(0.5, "cm"), legend.key.height = unit(0.5, "cm")) +
+
+    scale_fill_manual(name="Intensity of Prior\nLight Exposure", labels=c(" Low (~50lux)", " Medium (~350lux)", " High (~1400lux)"), values=cbPalette) +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=PreAlphaPower-ci, ymax=PreAlphaPower+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) +  coord_cartesian(ylim = c(1.5, 2.5)) +
+    xlab("Hemisphere") + ylab("Pre Target Alpha Power (log transformed") +
+    theme(axis.title.x = element_text(face="bold", size=14),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=14),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=14, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+ 
+```
+
+
+**Put the plot above and RT_BarGraph into the one multi panel plot:**
+```{r, echo=FALSE, message=FALSE}
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(DF, measurevar="PreAlphaPower", withinvars=c("Light", "Hemisphere"), idvar="ID")
+PreAlphaPower_BarGraph<-ggplot(plotdata, aes(x=Hemisphere, y=PreAlphaPower, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") +
+    theme(legend.key = element_rect(), legend.key.width = unit(0.3, "cm"), legend.key.height = unit(0.3, "cm")) +
+    scale_fill_manual(name="Intensity of Prior\nLight Exposure", labels=c(" Low (~50 lux)", " Medium (~350 lux)", " High (~1400 lux)"), values=cbPalette) +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=PreAlphaPower-ci, ymax=PreAlphaPower+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) +  coord_cartesian(ylim = c(1.5, 2.5)) +
+    xlab("Hemisphere") + ylab("Pre-target Parieto-occipital\nAlpha Power (uV)") +
+    theme(axis.title.x = element_text(face="bold", size=12),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=12),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=12, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+
+### Following steps from http://stackoverflow.com/questions/12463691/inserting-an-image-to-ggplot-outside-the-chart-area?lq=1
+
+# Get the scalp_plots
+scalp_plots <- readPNG("ROIs.png")
+scalp_plots <- rasterGrob(scalp_plots)
+
+Scale_ScalpPlot <- readPNG("Scale_ScalpPlot.png")
+Scale_ScalpPlot <- rasterGrob(Scale_ScalpPlot)
+
+Light_ScalpPlot <- readPNG("Light_ScalpPlot.png")
+Light_ScalpPlot <- rasterGrob(Light_ScalpPlot)
+
+Orienting_ScalpPlot <- readPNG("Orienting_ScalpPlot.png")
+Orienting_ScalpPlot <- rasterGrob(Orienting_ScalpPlot)
+
+
+#make a 4 x 6 Grid
+grid4x6<-grid.layout(nrow = 4, ncol = 6, default.units = "npc", widths=c(0.5/17,6/17,3/17,0.75/17,0.5/17,6/17), heights=c(0.5/17, 3/17, 0.5/17, 3/17))
+# grid.show.layout(grid4x6)
+grid.newpage()
+pushViewport(viewport(layout = grid4x6))
+
+
+#Add Orienting_ScalpPlot
+pushViewport(viewport(layout.pos.row=2, layout.pos.col =3))
+print(grid.draw(Orienting_ScalpPlot), newpage=FALSE)
+popViewport()
+#Add Letter C
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 3))
+grid.text("B", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#Add Light_ScalpPlot
+pushViewport(viewport(layout.pos.row=4, layout.pos.col = 3))
+print(grid.draw(Light_ScalpPlot), newpage=FALSE)
+popViewport()
+#Add Letter C
+pushViewport(viewport(layout.pos.row=3, layout.pos.col = 3))
+grid.text("C", gp=gpar(fontsize=16, col="black"))
+popViewport()
+#Add Scale_ScalpPlot
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 4))
+print(grid.draw(Scale_ScalpPlot), newpage=FALSE)
+popViewport()
+
+#Add  RT_BarGraph
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 1:2))
+# print(RT_BarGraph+ theme(legend.position="right"), newpage=FALSE)
+print(RT_BarGraph+ theme(legend.position=c(1, 1.2)), newpage=FALSE)
+# print(RT_BarGraph + theme(legend.position="none"), newpage=FALSE)
+popViewport()
+#Add Letter A
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 1))
+grid.text("A", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#Add PreAlphaPower_BarGraph
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 5:6))
+print(PreAlphaPower_BarGraph + theme(legend.position="none"), newpage=FALSE)
+popViewport()
+#Add Letter B
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 5))
+grid.text("D", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#Set up fig name and res:
+png("Figure1.png",  width = 12*600, height = 10*600, units = "px", res = 600)
+
+#make a 4 x 6 Grid
+grid4x6<-grid.layout(nrow = 4, ncol = 6, default.units = "npc", widths=c(0.5/17,6/17,3/17,0.75/17,0.5/17,6/17), heights=c(0.5/17, 3/17, 0.5/17, 3/17))
+grid.show.layout(grid4x6)
+grid.newpage()
+pushViewport(viewport(layout = grid4x6))
+
+
+#Add Orienting_ScalpPlot
+pushViewport(viewport(layout.pos.row=2, layout.pos.col =3))
+print(grid.draw(Orienting_ScalpPlot), newpage=FALSE)
+popViewport()
+#Add Letter C
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 3))
+grid.text("B", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#Add Light_ScalpPlot
+pushViewport(viewport(layout.pos.row=4, layout.pos.col = 3))
+print(grid.draw(Light_ScalpPlot), newpage=FALSE)
+popViewport()
+#Add Letter C
+pushViewport(viewport(layout.pos.row=3, layout.pos.col = 3))
+grid.text("C", gp=gpar(fontsize=16, col="black"))
+popViewport()
+#Add Scale_ScalpPlot
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 4))
+print(grid.draw(Scale_ScalpPlot), newpage=FALSE)
+popViewport()
+
+#Add  RT_BarGraph
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 1:2))
+# print(RT_BarGraph+ theme(legend.position="right"), newpage=FALSE)
+print(RT_BarGraph+ theme(legend.position=c(1, 1.2)), newpage=FALSE)
+# print(RT_BarGraph + theme(legend.position="none"), newpage=FALSE)
+popViewport()
+#Add Letter A
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 1))
+grid.text("A", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#Add PreAlphaPower_BarGraph
+pushViewport(viewport(layout.pos.row=2:4, layout.pos.col = 5:6))
+print(PreAlphaPower_BarGraph + theme(legend.position="none"), newpage=FALSE)
+popViewport()
+#Add Letter B
+pushViewport(viewport(layout.pos.row=1, layout.pos.col = 5))
+grid.text("D", gp=gpar(fontsize=16, col="black"))
+popViewport()
+
+#save the .png
+dev.off()
+
+
+
+
+```
+
+
+**Plot above suggests Light has a larger effect on Right hemisphere than on Left hemisphere. so, next we'll run simple effects of light seperatly inside each hemisphere:**
+
+**Effect of Light on Left Hemisphere vs. on Right Hemisphere:**
+```{r, echo=FALSE, message=FALSE}
+
+#Effect of Light on Left Hemisphere Alpha power only
+summary(glht(lmer(log(PreAlphaPower) ~ Light + (1 | LightCondOrder/ID) + (1 |Light) +(1|ITI) + (1|ValidTrialNum), data = DF[DF$Hemisphere=="Left",], REML=FALSE, na.action = na.omit),linfct=mcp(Light="Tukey")))
+
+#Effect of Light on Right Hemisphere Alpha power only
+summary(glht(lmer(log(PreAlphaPower) ~ Light + (1 | LightCondOrder/ID) + (1 |Light) +(1|ITI) + (1|ValidTrialNum), data = DF[DF$Hemisphere=="Right",], REML=FALSE, na.action = na.omit),linfct=mcp(Light="Tukey")))
+
+
+```
+
+
+
+**SWEET! So the effect of Light on the right-hemisphere scaled significantly in a step-wise fashion [high versus low, b= 0.07, SE=0.007, t= 9.55, p<0.0001; high versus medium, b= 0.03, SE=0.007, t=3.57, p=0.001; medium vs low, b= 0.04, SE=0.007, t= 5.97, p<0.0001]. In contrast, there was no difference between medium and low Light on left-hemisphere [b= 0.01, SE=0.007, t= 1.66, p=0.220], while the other two contrasts were significant but of smaller effect size [high versus low, b= 0.03, SE=0.007, t= 4.33, p<0.001; high versus medium, b= 0.02, SE=0.007, t=2.66, p=0.021]. And importantly, the electrodes chosen for analysis from left and right hemisphere where chosen based on their desynchronisation when orienting to left vs right targets (electrode choice was not based on the effect of Light)**
+
+
+
+**Test if the Hemifield*Light interaction for RT data holds up when using the old/"classical" ANOVA, to satisify Reviewer #1's request**
+```{r, echo=FALSE, warning=FALSE}
+#######################
+# Try ANOVA:
+require(ez)
+
+options(contrasts=c("contr.sum","contr.poly")) #set categorical non-ordered contrasts to "deviation" contrasts using "contr.sum"  
+
+ezANOVA(
+    data = DF
+    , dv = .(log_PreAlphaPower)
+    , wid = .(ID)
+    , within = .(Light, Hemisphere)
+    , within_full = .(Light, Hemisphere, ITI, ValidTrialNum)
+    , within_covariates = NULL
+    , between = NULL
+    , between_covariates = .(LightCondOrder)
+    , type = 3
+)
+
+#######################
+# Test the  effect of Light on Left Hemisphere Alpha
+data_LeftHemi = DF[DF$Hemisphere=="Left",] 
+ezANOVA(
+    data = data_LeftHemi
+    , dv = .(log_PreAlphaPower)
+    , wid = .(ID)
+    , within = .(Light)
+    , within_full = .(Light, ITI, ValidTrialNum)
+    , within_covariates = NULL
+    , between = NULL
+    , between_covariates = .(LightCondOrder)
+    , type = 3
+)
+
+# Test the  effect of Light on Right Hemisphere Alpha
+data_RightHemi = DF[DF$Hemisphere=="Right",] 
+ezANOVA(
+    data = data_RightHemi
+    , dv = .(log_PreAlphaPower)
+    , wid = .(ID)
+    , within = .(Light)
+    , within_full = .(Light, ITI, ValidTrialNum)
+    , within_covariates = NULL
+    , between = NULL
+    , between_covariates = .(LightCondOrder)
+    , type = 3
+)
+
+
+options(contrasts = c("contr.treatment", "contr.poly"))
+
+```
+So using the classic ANOVA style analysis the effect of Light on Right hemisphere alpha is close to significant (p=.057, after sphericity correction p=0.07), in line with the results from multilevel model. The classic ANOVA has less power then the multilevel modeling approach because it can not describe the alpha measurments correctly as being nested within Hemispheres within Participants withing LightCondOrder. The multilevel modeling approach can do this. 
+
+
+
+
+###Test if Time-on-task (TOT) moderates the Light x Hemisphere interaction for Pre-target alpha power
+```{r, echo=FALSE, warning=FALSE}
+PreAlphaPower_TOT<-update(PreAlphaPower_LightbyHemisphere, .~. + ValidTrialNum)
+PreAlphaPower_LightbyTOT <- update(PreAlphaPower_TOT, .~. + Light*ValidTrialNum)
+PreAlphaPower_HemispherebyTOT <- update(PreAlphaPower_LightbyTOT, .~. + Hemisphere*ValidTrialNum)
+PreAlphaPower_LightbyHemispherebyTOT<-update(PreAlphaPower_HemispherebyTOT, .~. + Light*Hemisphere*ValidTrialNum)
+
+anova(PreAlphaPower_LightbyHemisphere,PreAlphaPower_TOT,PreAlphaPower_LightbyTOT, PreAlphaPower_HemispherebyTOT, PreAlphaPower_LightbyHemispherebyTOT)
+
+
+#Appears to be a main effect of TOT. Try adding random slopes for TOT (ValidTrialNum) and see if the TOT fixed is still significant.
+PreAlphaPower_RS<-update(PreAlphaPower_LightbyHemisphere, .~. + (0+ ValidTrialNum|ID))
+PreAlphaPower_TOT_RS<-update(PreAlphaPower_RS, .~. + ValidTrialNum)
+
+# Models with random slope failed to converge: degenerate  Hessian with 2 negative eigenvalues so have to stick with the intercept only results
+
+summary(PreAlphaPower_LightbyHemispherebyTOT<-lmerTest::lmer(log(PreAlphaPower) ~ 1 + Light*Hemisphere + ValidTrialNum + Light*ValidTrialNum +  Hemisphere*ValidTrialNum + Light*Hemisphere*ValidTrialNum +
+         (1 | LightCondOrder/ID/Hemisphere) +
+         (1|Light) + 
+         (1|ITI) + 
+         (1|ValidTrialNum), data = DF,  na.action = na.omit, REML=F))
+```
+
+So above ^ shows that there is a main effect of time-on-task such that alpha power tends to increases over time, and time-on-task does not influence the Light x Hemisphere interaction
+
+
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+##Higher light intensity suppresses the effect of alpha-power on forthcoming RTs 
+
+```{r, echo=FALSE, message=FALSE}
+
+data2<-data[!data$Artefact500msPre,]
+data2<-data2[data2$PreAlphaPower!=0,]
+
+########### Log transform PreAlphaPower, but only to remove outliers - 
+#No need to log transform PreAlphaPower when it is a predictor. Linear lodels only assume normality of the dependent variable, not of the predictors:
+data2$log_PreAlphaPower<-log(data2$PreAlphaPower) #log
+
+#####Z-score each participant's log_PreAlphaPower data2 inside Light Condition####
+data2$IDbyLight<-interaction(data2$ID, data2$Light) #ID by Light factor (splits data2 up according to session)
+#calculate mean and sd 
+m <- tapply(data2$log_PreAlphaPower,data2$IDbyLight,mean,na.rm=T)
+s <- sqrt(tapply(data2$log_PreAlphaPower,data2$IDbyLight,var,na.rm=T))
+#calculate log_PreAlphaPower.Z and save it inside data2.frame
+data2$log_PreAlphaPower.Z <- (data2$log_PreAlphaPower-m[data2$IDbyLight])/s[data2$IDbyLight]
+#check that Z scores have mean=0 and std=1 
+log_PreAlphaPower.Z_checker <- ddply(data2, c("ID", "Light"), summarise,
+               N    = length(log_PreAlphaPower.Z),
+               mean = round(mean(log_PreAlphaPower.Z)),
+               sd   = sd(log_PreAlphaPower.Z ),
+               se   = sd / sqrt(N) )
+##Remove trials where absolute log_PreAlphaPower.Z>3 (i.e. remove outlier log_PreAlphaPowers)
+data2<-data2[!abs(data2$log_PreAlphaPower.Z)>3,]
+########### 
+
+#Make a function to centre PreAlphaPower - other wise lmer() throws a warning suggesting we re-scale variables 
+c. <- function (x) scale(x, scale = FALSE)
+
+############ model the effects
+HemifieldbyLight<-lmer(RT ~ Hemifield*Light + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + 
+                            + (0 + Hemifield | ID), data = data2, REML=FALSE, na.action = na.exclude)
+PreAlphaPower<-update(HemifieldbyLight, .~. + c.(PreAlphaPower))
+HemifieldbyPreAlphaPower<-update(PreAlphaPower, .~. + Hemifield:c.(PreAlphaPower))
+LightbyPreAlphaPower<-update(HemifieldbyPreAlphaPower, .~. + Light:c.(PreAlphaPower))
+HemifieldbyLightbyPreAlphaPower<-update(LightbyPreAlphaPower, .~. + Hemifield:Light:c.(PreAlphaPower))
+anova(HemifieldbyLight, PreAlphaPower, HemifieldbyPreAlphaPower,LightbyPreAlphaPower,HemifieldbyLightbyPreAlphaPower)
+
+##Make sure the effects survive the addition of random slope of PreAlphaPower 
+
+#Make the basic model with the fixed and random effects from the final Light x Hemifield model for RT above:
+RT_alpha<-lmer(RT ~ Hemifield*Light + c.(PreAlphaPower) + Hemifield*c.(PreAlphaPower) + Light*c.(PreAlphaPower) + 
+                   (1 | LightCondOrder/ID) + (1 | ITI) +  (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID), 
+               data = data2, REML=FALSE, na.action = na.exclude)
+# Now run forward testing of the other random effects to see which ones to keep
+RT_alpha_m2<-ffRanefLMER.fnc(model = RT_alpha, ran.effects = c(
+                                              "(0+c.(PreAlphaPower) | ID)",
+                                              "(0+Light:c.(PreAlphaPower) | ID)",
+                                              "(0+Hemifield:c.(PreAlphaPower) | ID)"), log.file = FALSE)
+summary(RT_alpha_m2)
+
+#Final Model the following random effects structure: (1 | LightCondOrder/ID) +      (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID) + (0 + c.(PreAlphaPower) | ID) 
+
+#Fit the full parsimonious random effects structure along with the significant fixed effects 
+summary(RT_alpha_Final<-lmerTest::lmer(RT ~ 1 + Hemifield*Light + Light*c.(PreAlphaPower) + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID) +  (0 + c.(PreAlphaPower) | ID), data = data2, REML=FALSE, na.action = na.exclude))
+```
+
+**So the t- and p-values from the RT_alpha_Final model shows that both the main effect of PreAlphaPower on RT and the PreAlphaPower x Light interaction survive the addition of a by-subjects random slope of PreAlphaPower. Since we are using liklihood ratio tests in the manuscript instead of reporting t-values, now lets do liklihood ratio tests for main effect of PreAlphaPower and the PreAlphaPower x Light interaction on RT:**
+
+```{r, echo=FALSE, message=FALSE}
+
+############ model the effects
+HemifieldbyLight<-lmer(RT ~ Hemifield*Light + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + 
+                           + (0+ c.(PreAlphaPower)|ID) + (0 + Hemifield | ID), data = data2, REML=FALSE, na.action = na.exclude)
+PreAlphaPower<-update(HemifieldbyLight, .~. + c.(PreAlphaPower))
+LightbyPreAlphaPower<-update(PreAlphaPower, .~. + Light:c.(PreAlphaPower))
+anova(HemifieldbyLight, PreAlphaPower,LightbyPreAlphaPower)
+
+
+# Warning message:
+# In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#   Model is nearly unidentifiable: large eigenvalue ratio
+#  - Rescale variables?
+
+# It's very wierd that the liklihood ratio tests says no main effect of PreAlphaPower when the t-values in RT_alpha_Final indicate a signifiant effect of PreAlphaPower on RT (and the plots show a clear effect; not to mention that fact that the relationship between Pre-target alpha power and Reaction time is very well replicated and robust). Most likely there are outliers that influencing the deviance scores for the liklihood ratio tests, therefore lets trim deviance outliers greater than 3 standard deviations from the mean and run the liklihood ratio tests again:
+
+  data2 <- romr.fnc(LightbyPreAlphaPower, data2, trim = 3)
+  data2$n.removed
+  data2$percent.removed
+  data2<-data2$data
+
+
+HemifieldbyLight<-lmer(RT ~ Hemifield*Light + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + 
+                           + (0+ c.(PreAlphaPower)|ID) + (0 + Hemifield | ID), data = data2, REML=FALSE, na.action = na.exclude)
+PreAlphaPower<-update(HemifieldbyLight, .~. + c.(PreAlphaPower))
+LightbyPreAlphaPower<-update(PreAlphaPower, .~. + Light:c.(PreAlphaPower))
+anova(HemifieldbyLight, PreAlphaPower,LightbyPreAlphaPower)
+
+```
+
+
+
+###Light x PreAlphaPower###
+
+**Break down the Light x PreAlphaPower effect with pairwise comparisons and plot it:**
+
+```{r, echo=FALSE, message=FALSE}
+
+summary(LightbyPreAlphaPower)
+
+
+contrast.matrix_LightbyPreAlphaPower<-rbind(
+    "LightLow:PreAlphaPower vs LightMedium:PreAlphaPower"  =c(0,0,0,0,0,0,0,1,0),
+    "LightLow:PreAlphaPower vs LightHigh:PreAlphaPower"    =c(0,0,0,0,0,0,0,0,1),
+    "LightMedium:PreAlphaPower vs LightHigh:PreAlphaPower" =c(0,0,0,0,0,0,0,-1,1))
+
+summary(glht(LightbyPreAlphaPower, contrast.matrix_LightbyPreAlphaPower))
+
+
+require(effects)
+
+levels(data2$Light) <- c("Low(~50 lux)", "Medium(~350 lux)", "High(~1400lux)")
+
+eff.LightbyPreAlphaPower <- Effect(c("Light", "PreAlphaPower"), LightbyPreAlphaPower, xlevels=list(PreAlphaPower=c(0,1,2,5,10)))
+
+# floor(max(data2$PreAlphaPower))
+
+plot_RT_by_Light_and_PreAlphaPower<-plot(eff.LightbyPreAlphaPower, layout=c(3,1), main=NULL, rug=F, multiline =F, alternating=T,ylim=c(445,585),ticks.x=NULL,x.var="PreAlphaPower", xlab="Pre-target parieto-occipital Alpha Power (uV)", ylab="Response-time (ms)")
+
+#Plot Density histograms of PreAlphaPower observations:
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+require(lattice) 
+plot_hist_PreAlphaPower_by_light<- histogram(~ PreAlphaPower | Light, data=data2, strip = FALSE, layout=c(3,1), main=NULL, ylab = "Observations", xlab=NULL, xlim=c(0,10), scales = list(x = list(draw = FALSE)),col=cbPalette,ylim=c(0,NA),type = "count", par.settings = list(axis.line = list(col = 0)),
+           panel=function(x, col=col,...){
+    panel.histogram(x,col=col[packet.number()],...) #gets color for each panel
+    })
+
+# floor(max(data2$PreAlphaPower)) -  can use this in xlim=c(-0.2,10) above instead of  10
+
+
+
+print(plot_hist_PreAlphaPower_by_light, position=c(0.02, 0.72, 1,    1), more=TRUE, newpage = F)
+print(plot_RT_by_Light_and_PreAlphaPower, position=c(0.02,  0, 1, 0.80),more=FALSE,save.object=T)
+
+
+#Set up fig name and res:
+png("Figure2.png",  width = 9*600, height = 6*600, units = "px", res = 600)
+
+print(plot_hist_PreAlphaPower_by_light, position=c(0.02, 0.72, 1,    1), more=TRUE, newpage = F)
+print(plot_RT_by_Light_and_PreAlphaPower, position=c(0.02,  0, 1, 0.80),more=FALSE,save.object=T)
+
+dev.off()
+
+
+levels(data2$Light) <- c("Low", "Medium", "High")
+
+
+
+#Can add this in above if want a plot title:
+# main="Response-time as a function of pre-target alpha power and\n Prior Light Exposure Intensity")
+
+##############
+# #For log transformed pre-target alpha power:
+# plot(eff.LightbyPreAlphaPower, layout=c(3,1),  transform.x=list(PreAlphaPower=c(trans=log, inverse=exp)), ticks.x=list(PreAlphaPower=list(at=c(0,1,2,5,10))), main=NULL, rug=FALSE, alternating=TRUE, xlab="Pre-target parieto-occipital Alpha Power,\n log scale)", ylab="Response-time (ms)")
+# 
+# plot(eff.LightbyPreAlphaPower, layout=c(3,1), ticks.x=list(PreAlphaPower=list(at=c(0,1,2,5,10))), main=NULL, rug=FALSE, alternating=TRUE, xlab="Pre-target parieto-occipital Alpha Power,\n log scale)", ylab="Response-time (ms)")
+##############
+
+
+```
+
+
+**Check assumptions for Hemifield by Light by PreAlphaPower RT model:**
+```{r, echo=FALSE, warning=FALSE}
+residuals_RT_LightbyPreAlphaPower=residuals(LightbyPreAlphaPower)
+plot(residuals_RT_LightbyPreAlphaPower)
+hist(residuals_RT_LightbyPreAlphaPower)
+```
+
+
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+
+##Right hemisphere alpha-power mediates the causal effect of light intensity on left-hemifield RTs
+
+###Light -->  PreAlphaPower_RightHemi --> Left-target RT? 
+
+```{r, echo=FALSE, warning=FALSE}
+data2<-data[!data$Artefact500msPre,]
+data2<-data2[data2$PreAlphaPower_RightHemi!=0,]
+data2$PreAlphaPower_RightHemi<-log(data2$PreAlphaPower_RightHemi) #log
+
+#####Z-score each participant's PreAlphaPower_RightHemi data2 inside Light Condition####
+data2$IDbyLight<-interaction(data2$ID, data2$Light) #ID by Light factor (splits data2 up according to session)
+#calculate mean and sd 
+m <- tapply(data2$PreAlphaPower_RightHemi,data2$IDbyLight,mean,na.rm=T)
+s <- sqrt(tapply(data2$PreAlphaPower_RightHemi,data2$IDbyLight,var,na.rm=T))
+#calculate PreAlphaPower_RightHemi.Z and save it inside data2.frame
+data2$PreAlphaPower_RightHemi.Z <- (data2$PreAlphaPower_RightHemi-m[data2$IDbyLight])/s[data2$IDbyLight]
+#check that Z scores have mean=0 and std=1 
+PreAlphaPower_RightHemi.Z_checker <- ddply(data2, c("ID", "Light"), summarise,
+               N    = length(PreAlphaPower_RightHemi.Z),
+               mean = round(mean(PreAlphaPower_RightHemi.Z)),
+               sd   = sd(PreAlphaPower_RightHemi.Z ),
+               se   = sd / sqrt(N) )
+summary(PreAlphaPower_RightHemi.Z_checker$mean)
+summary(PreAlphaPower_RightHemi.Z_checker$sd)
+##Remove trials where absolute PreAlphaPower_RightHemi.Z>3 (i.e. remove outlier PreAlphaPower_RightHemis)
+data2<-data2[!abs(data2$PreAlphaPower_RightHemi.Z)>3,]
+
+
+#Now delete the Medium light condition for mediation analysis since we just want to compare Low vs High light. And keep Left Hemifield Targets only. We are interested in mediating variables between the effect of Light on Left Target RTs
+data_LeftTargets = data2[data2$Hemifield=="Left" & data2$Light!="Medium",] #make data.frame with left targets only
+
+  cat("Number of Observations for model:")
+  print(dim(data_LeftTargets)[1])
+
+source("sobel_oneHemifield_RightHemisphere.R")
+sobel_oneHemifield_RightHemisphere(data_LeftTargets, data_LeftTargets$Light, data_LeftTargets$PreAlphaPower_RightHemi, data_LeftTargets$RT)
+
+```
+
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+
+#Supplementary info:
+
+## Light Manipulation Check
+
+The light conditions were set at a different intensities over the 3 nights each participant came to the lab. Although participants were never told that the light intensity was different from night-to-night, it is still possible that that they noticed the change, and therefore it is possible that they were not adequately "blinded" to the Light manipulation. This could lead to a "placebo" effect or a participant "expectancy effect" due to non-blinded light conditions.
+
+One way we set up to account for this possibility was directly after each participant's 3rd testing session, they were asked to judge (1) which of the 3 sessions the light was the most bright, the least bright and of medium brightness, and (2) how confident they were about the accuracy of their judgment. This allowed us to gauge how aware they were of the light manipulation.....
+
+### Number of participants correctly/incorrectly judging light intensity 
+
+```{r, message=FALSE}
+summary(data_ParticipantLevel[1:24,"LightCondsGuessedCorrectly"])
+```
+
+
+**So, 50% of participants correctly judged the light intensities**
+As a further test, those who noticed the different light conditions should be more confident in their judgments. If participants were noticing the different light conditions, then
+there should be a significant relationship between participants' correctly/incorrectly 
+judging light intensity and their ensuing confidence that their judgment was correct.
+The next section tests for this.......
+
+### Relationship between correct/incorrect judgment of light intensity and participants' confidence that they were correct. 
+
+This section of code is adapted from Lakens, D. (2015). The perfect *t*-test. 
+Retrieved from https://github.com/Lakens/perfect-t-test. doi:10.5281/zenodo.17603
+
+```{r, echo=FALSE, include=FALSE, cache = FALSE}
+###############################################################################################################################
+###############################################################################################################################
+###############################################################################################################################
+
+###################################
+## Define variables names below ###
+###################################
+
+data_LightConds<-data_ParticipantLevel[data_ParticipantLevel$Session=="Three",c("ID", "LightCondsGuessedCorrectly","LightCondsGuessed_Confidence")]
+
+data_LightConds<-na.omit(data_LightConds)#rows with missing data are removed
+
+#Define names of the two groups, as specified by the grouping variable (e.g., 'high' and 'low', or '1' and '2'). Difference is computed as x-y (so reverse labels as desired) 
+xlabel<-"Yes" #name group 1 - needs to match the datafile (R is case-sensitive)!
+ylabel<-"No" #name group 2 - needs to match the datafile (R is case-sensitive)!
+
+#Define name (header) of the grouping column in your data file (e.g., condition, time).
+factorlabel<-"LightCondsGuessedCorrectly" #needs to match the datafile (R is case-sensitive)!
+#Define name of the dependent measure column in your data file (e.g., Response-times, self-reported happiness)
+measurelabel<-"LightCondsGuessed_Confidence"  #needs to match the datafile (R is case-sensitive)!
+#Below names for axis are used. These CAN include spaces.
+xlabelstring<-"Light Condition Guess Correctly" #define variables to be used for axis (can be replaced by "Any Label")
+ylabelstring<-"Guess Confidence (1-10)"  #define variables to be used for axis
+
+#Set your alpha level and confidence interval
+alpha<-0.05
+ConfInt<-0.95
+
+#For the Bayes Factor, specify which effect you expect. Standard to 0.5 (small effect). Change to 0.707 (medium effect) or 1 (large effect).
+BFrscale<-0.5
+
+#Alternative hypothesis: specify "two.sided" (for x<>y), "less" (for x<y) or "greater" (for x>y)
+H1<-"two.sided"
+
+#Calculating the Bayesian HDI and Bootstrapping the effect size for robust statistics can take quite some time (e.g., 30 minutes) in large sample sizes (e.g., N > 2000). If you are in a hurry, set the variable below to "YES", if you want the HDI and Bootstrapped ES, set it to "NO"
+InAHurry<-"NO"
+
+#If you get an error with large samples, try increasing bootstraps number below (e.g., to 5000 or 10000) and be patient (for robust d effect size calculation)
+bootstraps<-2000
+
+#############################################################
+### Changed the information above? Then hit 'Knit Word' #####
+#############################################################
+#################### Know your way around R? ################ 
+############ Feel free to change the script below ###########
+#############################################################
+
+options(scipen=20) #disable scientific notation for numbers smaller than x (i.e., 10) digits (e.g., 4.312e+22)
+
+#Remove other conditions in your datafile (only keep groups specified above)
+data_LightConds<-subset(data_LightConds, data_LightConds[[factorlabel]]==xlabel|data_LightConds[[factorlabel]]==ylabel)
+
+x.data_LightConds<-subset(data_LightConds, data_LightConds[[factorlabel]]==xlabel)
+y.data_LightConds<-subset(data_LightConds, data_LightConds[[factorlabel]]==ylabel)
+x<-x.data_LightConds[[measurelabel]]
+y<-y.data_LightConds[[measurelabel]]
+
+#######################################################################
+#######################################################################
+########### Calculate CI for within and between #######################
+################ Scripts from Baguley, 2012 ###########################
+#######################################################################
+#######################################################################
+
+# slightly adapted from: https://seriousstats.wordpress.com/2012/03/18/cis-for-anova/
+
+bsci <- function(data.frame, group.var=match(factorlabel,names(data_LightConds)), dv.var=match(measurelabel,names(data_LightConds)), difference=FALSE, pooled.error=FALSE, conf.level=ConfInt) {
+  data <- subset(data_LightConds, select=c(group.var, dv.var))
+	fact <- factor(data[[1]], levels = c(xlabel,ylabel))
+	dv <- data[[2]]
+	J <- nlevels(fact)
+	N <- length(dv)
+    ci.mat <- matrix(,J,3, dimnames=list(levels(fact), c('lower', 'mean', 'upper')))
+    ci.mat[,2] <- tapply(dv, fact, mean)
+    n.per.group <- tapply(dv, fact, length)
+    if(difference==TRUE) diff.factor= 2^0.5/2 else diff.factor=1
+    if(pooled.error==TRUE) {
+		for(i in 1:J) {
+			moe <- summary(lm(dv ~ 0 + fact))$sigma/(n.per.group[[i]])^0.5 * qt(1-(1-conf.level)/2,N-J) * diff.factor
+			ci.mat[i,1] <- ci.mat[i,2] - moe
+			ci.mat[i,3] <- ci.mat[i,2] + moe
+			}
+		}
+	if(pooled.error==FALSE) {
+		 for(i in 1:J) {
+		 	group.dat <- subset(data, data[1]==levels(fact)[i])[[2]]
+		 	moe <- sd(group.dat)/sqrt(n.per.group[[i]]) * qt(1-(1-conf.level)/2,n.per.group[[i]]-1) * diff.factor
+		 	ci.mat[i,1] <- ci.mat[i,2] - moe
+		 	ci.mat[i,3] <- ci.mat[i,2] + moe
+		}
+	}
+    ci.mat
+}
+
+#change matrix output from functions to dataframe, add CI from between, add labels and means 
+ci.sum<-as.data.frame(bsci(data_LightConds, group.var=match(factorlabel,names(data_LightConds)), dv.var=match(measurelabel,names(data_LightConds)), difference=TRUE))
+ci.sum[[factorlabel]] <- c(xlabel,ylabel)
+ci.sum[[measurelabel]] <- c(mean(x),mean(y))
+
+##################################################################
+##################################################################
+######## PLOT DATA AND CHECK FOR OUTLIERS AND NORMALITY ##########
+##################################################################
+##################################################################
+
+require(ggplot2)
+
+#Test normality 
+require(PoweR)
+normalityrejectionsx<-(statcompute(21, x, levels = c(0.05))$decision + statcompute(6, x, levels = c(0.05))$decision + statcompute(2, x, levels = c(0.05))$decision + statcompute(7, x, levels = c(0.05))$decision)
+normalityrejectionsy<-(statcompute(21, y, levels = c(0.05))$decision + statcompute(6, y, levels = c(0.05))$decision + statcompute(2, y, levels = c(0.05))$decision + statcompute(7, y, levels = c(0.05))$decision)
+
+#Testing equality of variances
+require(car)
+pvalueLevene<-leveneTest(data_LightConds[[measurelabel]] ~ as.factor(data_LightConds[[factorlabel]]))$"Pr(>F)"[1:1]
+if (pvalueLevene < 0.05){equalvar<-"the assumption that variances are equal is rejected (consider reporting robust statistics)."}
+if (pvalueLevene >= 0.05){equalvar<-"the assumption that variances are equal is not rejected."}
+
+#########################################################
+#########################################################
+###       Perform t-test, calculate ES (Cohen's d)   ####
+#########################################################
+#########################################################
+
+sd1<-sd(x) #standard deviation of group 1
+sd2<-sd(y) #standard deviation of group 2
+n1 <- length(x) #number of individuals
+n2 <- length(y) #number of individuals
+m_diff<-mean(x)-mean(y)
+#Always performs Welch's t-test for unequal variances which is better than Levene's test followed by Student's t-test
+ttestresult<-t.test(x, y, alternative = H1, paired = FALSE, var.equal = FALSE, conf.level = ConfInt)
+tvalue<-ttestresult$statistic #store t-value from dependent t-test
+pvalue<-ttestresult$p.value #store p-value from dependent t-test
+CI_diff<-ttestresult$conf.int #store confidence interval of mean difference
+s_av <- sqrt((sd1^2+sd2^2)/2) #calculate average standard deviation for effect size calculation
+
+#Specify direction of difference
+if (mean(x)>mean(y)){direction<-"greater than"}
+if(mean(x)<mean(y)){direction<-"smaller than"}
+if(pvalue < alpha){surprising<-"surprising"}
+if(pvalue >= alpha){surprising<-" not surprising"}
+
+#Cohen's d
+require(MBESS)
+d<-smd(Mean.1= mean(x), Mean.2=mean(y), s.1=sd(x), s.2=sd(y), n.1=n1, n.2=n2, Unbiased=TRUE) #Use MBESS to calc d unbiased (Hedges g)
+if(is.finite(d)==FALSE){d<-smd(Mean.1= mean(x), Mean.2=mean(y), s.1=sd(x), s.2=sd(y), n.1=n1, n.2=n2, Unbiased=FALSE)}#In large samples, smd function gives error when Unbiased=TRUE. Difference in d and g no longer noticable, so then unbiased d is calculated.
+ci_l_d<-ci.smd(ncp = tvalue, n.1 = n1, n.2 = n2, conf.level=1-.05)$Lower.Conf.Limit.smd
+ci_u_d<-ci.smd(ncp = tvalue, n.1 = n1, n.2 = n2, conf.level=1-.05)$Upper.Conf.Limit.smd
+
+#Common Langaue Effect Size (McGraw & Wong, 1992)
+CL<-pnorm(abs(m_diff)/sqrt(sd1^2+sd2^2))
+
+#Interpret size of effect (last resort - use only if effect size cannot be compared to other relevant effects in the literature)
+if (abs(d) < 0.2){effectsize<-"tiny"}
+if (0.2 <= abs(d) && abs(d) < 0.5){effectsize<-"small"}
+if (0.5 <= abs(d) && abs(d) < 0.8){effectsize<-"medium"}
+if (abs(d) >= 0.8){effectsize<-"large"}
+
+#Robust Statistics
+require(WRS)
+yuentest<-yuenbt(x,y, tr=0.2,alpha=1-ConfInt,nboot=599,side=T) #for details of this function, see Wilcox, 2012, p. 163).
+
+#Specify direction of difference
+if(yuentest$est.1>yuentest$est.2){direction2<-"greater than"}
+if(yuentest$est.1<yuentest$est.2){direction2<-"smaller than"}
+if(yuentest$p.value < alpha){surprising2<-"surprising"}
+if(yuentest$p.value >= alpha){surprising2<-" not surprising"}
+
+#Robust d (d_t) based on Algina, Keselman, and Penfield (2005). 
+require(bootES)
+if(InAHurry!="YES"){d_robust_sum<- bootES(data_LightConds, R=bootstraps, data.col = measurelabel, group.col = factorlabel, contrast = c(xlabel, ylabel), effect.type = "akp.robust.d")}
+ifelse((InAHurry!="YES"),d_robust<-d_robust_sum$t0,d_robust<-"NOT CALCULATED DUE TO TIME CONSTRAINTS")
+ifelse((InAHurry!="YES"),d_robust_ci_l<-d_robust_sum$bounds[1:1],d_robust_ci_l<-"NOT CALCULATED")
+ifelse((InAHurry!="YES"),d_robust_ci_u<-d_robust_sum$bounds[2:2],d_robust_ci_u<-"NOT CALCULATED")
+
+#Interpret size of effect (last resort - use only if effect size cannot be compared to other relevant effects in the literature)
+
+if(InAHurry!="YES"){if (abs(d_robust) < 0.2){effectsize2<-"tiny"}}
+if(InAHurry!="YES"){if (0.2 <= abs(d_robust) && abs(d_robust) < 0.5){effectsize2<-"small"}}
+if(InAHurry!="YES"){if (0.5 <= abs(d_robust) && abs(d_robust) < 0.8){effectsize2<-"medium"}}
+if(InAHurry!="YES"){if (abs(d_robust) >= 0.8){effectsize2<-"large"}}
+if(InAHurry!="NO"){effectsize2<-"EFFECT SIZE NOT DETERMINED"}
+
+#BayesFactor
+require(BayesFactor)
+if(H1 == "two.sided"){
+  BF<-ttest.tstat(t = tvalue, n1 = n1, n2 = n2, rscale = BFrscale, simple=TRUE)   
+} else if (H1 == "greater"){
+  BF <- ttest.tstat(t = tvalue, n1 = n1, n2 = n2, nullInterval = c(0, Inf), rscale = BFrscale, simple = TRUE)
+} else if (H1 == "less"){
+  BF <- ttest.tstat(t = tvalue, n1 = n1, n2 = n2, nullInterval = c(-Inf, 0), rscale = BFrscale, simple = TRUE)
+}
+if(BF!=Inf){round(BF, digits=2)}
+if(BF==Inf){BF<-"practically infinitely high"}
+
+require(BEST) #To calculate HIB
+if(InAHurry!="YES"){BESTout<-BESTmcmc(x,y)}
+if(InAHurry!="YES"){BESTdiff <- BESTout$mu1 - BESTout$mu2}
+if(InAHurry!="YES"){BESTHDI<-hdi(BESTdiff, credMass = ConfInt)}
+ifelse((InAHurry!="YES"),mu<-mean(BESTdiff),mu<-"NOT CALCULATED DUE TO TIME CONSTRAINTS")
+ifelse((InAHurry!="YES"),HDI_l<-BESTHDI[1],HDI_l<-"NOT CALCULATED")
+ifelse((InAHurry!="YES"),HDI_u<-BESTHDI[2],HDI_u<-"NOT CALCULATED")
+if(InAHurry!="YES"){Rhat<-attr(BESTout, "Rhat")}
+if(InAHurry!="YES"){neff<-attr(BESTout, "n.eff")}
+if(InAHurry!="YES"){ifelse(Rhat[1]<1.1 && Rhat[1]<1.1 && neff[1]>10000 && neff[2]>10000, BESTacceptable<-"acceptable", BESTacceptable<-"not acceptable - check the HDI calculation")} 
+
+#Interpret strength of evidence of Bayes Factor following Jeffreys (1961)
+if (0.33 < BF && BF <= 1){evidence<-"anecdotal evidence for H0"}
+if (0.1 < BF && BF <=0.33){evidence<-"moderate evidence for H0"}
+if (0.03 < BF && BF <= 0.1){evidence<-"strong evidence for H0"}
+if (0.01 < BF && BF <= 0.03){evidence<-"very strong evidence for H0"}
+if (BF <=0.01){evidence<-"decisive evidence for H0"}
+if (1 < BF && BF <= 3){evidence<-"anecdotal evidence for H1"}
+if (3 < BF && BF <=10){evidence<-"moderate evidence for H1"}
+if (10 < BF && BF <= 30){evidence<-"strong evidence for H1"}
+if (30 < BF && BF <= 100){evidence<-"very strong evidence for H1"}
+if (BF > 100){evidence<-"decisive evidence for H1"}
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+require(ggplot2)
+# bar chart with individual data point and 95% CI
+ggplot(ci.sum, aes(x=as.character(eval(parse(text=paste(factorlabel)))), y=eval(parse(text=paste(measurelabel))), group=1)) +
+  geom_bar(position=position_dodge(.9), colour="black", stat="identity", fill="white") +
+  geom_errorbar(width=.1, size=0.5, aes(ymin=lower, ymax=upper)) +
+#  geom_point(size=4) +
+  geom_point(data=data_LightConds, alpha=0.2) +
+#  geom_violin(data=data_LightConds, aes(group=as.character(eval(parse(text=paste(factorlabel))))), alpha=0) +
+#  geom_boxplot(data=data_LightConds, aes(group=as.character(eval(parse(text=paste(factorlabel))))), width=0.1) +
+  ylab(ylabelstring)  + xlab(xlabelstring) + theme_bw(base_size=14) + 
+  theme(panel.grid.major.x = element_blank()) +
+  ggtitle("Bar chart displaying 95% CI")
+
+```
+
+#### Tests for normality
+
+If a normality test rejects the assumptions that the data is normally distributed (with *p* < .05) non-parametric or robust statistics have to be used (robust analyses are provided below).  
+
+**The normality assumption was rejected in `r normalityrejectionsx` out of 4 normality tests for the `r xlabel` condition, and in `r normalityrejectionsy` out of 4 normality tests for the `r ylabel` condition.**
+
+Test Name  | *p*-value `r xlabel`  | *p*-value `r ylabel` 
+------------- | -------------- | -------------
+Shapiro-Wilk  | *p* `r ifelse(statcompute(21, x, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(21, x, levels = c(0.05))$pvalue>0.001, round(statcompute(21, x, levels = c(0.05))$pvalue, digits=3), "0.001")`  |   *p* `r ifelse(statcompute(21, y, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(21, y, levels = c(0.05))$pvalue>0.001, round(statcompute(21, y, levels = c(0.05))$pvalue, digits=3), "0.001")`   
+D'Agostino-Pearson  | *p* `r ifelse(statcompute(6, x, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(6, x, levels = c(0.05))$pvalue>0.001, round(statcompute(6, x, levels = c(0.05))$pvalue, digits=3), "0.001")` |  *p* `r ifelse(statcompute(6, y, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(6, y, levels = c(0.05))$pvalue>0.001, round(statcompute(6, y, levels = c(0.05))$pvalue, digits=3), "0.001")`
+Anderson-Darling  | *p* `r ifelse(statcompute(2, x, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(2, x, levels = c(0.05))$pvalue>0.001, round(statcompute(2, x, levels = c(0.05))$pvalue, digits=3), "0.001")`  | *p* `r ifelse(statcompute(2, y, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(2, y, levels = c(0.05))$pvalue>0.001, round(statcompute(2, y, levels = c(0.05))$pvalue, digits=3), "0.001")`    
+Jarque-Berra  | *p* `r ifelse(statcompute(7, x, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(7, x, levels = c(0.05))$pvalue>0.001, round(statcompute(7, x, levels = c(0.05))$pvalue, digits=3), "0.001")` |   *p* `r ifelse(statcompute(7, y, levels = c(0.05))$pvalue>0.001," = ", " < ")` `r ifelse(statcompute(7, y, levels = c(0.05))$pvalue>0.001, round(statcompute(7, y, levels = c(0.05))$pvalue, digits=3), "0.001")`
+
+---------------------
+
+
+**So we should rely on the Robust test and Bayesian test instead of the classic t-test since the classic t-test assumes normality**
+
+
+#### Classic t-test/Frequentist statistics
+
+**Results**
+
+The mean `r ylabelstring` of participants in the `r xlabel` condition (*M* = `r round(mean(x), digits = 2)`, *SD* = `r round(sd1, digits = 2)`, *n* = `r n1`) was slightly `r direction` the mean of participants in the `r ylabel` condition (*M* = `r round(mean(y), digits = 2)`, *SD* = `r round(sd2,digits=2)`, *n* = `r n2`). The difference between the two measurements (*M* = `r round(m_diff, digits=2)`, `r 100*ConfInt`% CI = [`r round(CI_diff[1:1], digits=2)`;`r round(CI_diff[2:2],digits=2)`]) was analyzed with Welch's *t*-test, *t*(`r round(ttestresult$parameter, digits=2)`) = `r round(tvalue, digits=2)`, *p* `r ifelse(pvalue>0.001," = ", " < ")` `r ifelse(pvalue>0.001,formatC(round(pvalue, digits=3),digits=3, format="f"), "0.001")`. 
+
+###Bayesian statistics
+
+A popular Bayesian approach relies on estimation, and the mean posterior and `r 100*ConfInt`% higest density intervals (HDI) are calculated following recommendations by [Kruschke, (2013)](http://www.indiana.edu/~kruschke/BEST/BEST.pdf) based on vague priors. According to Kruschke (2010, p. 34): 'The HDI indicates which points of a distribution we believe in most strongly. The width of the HDI is another way of measuring uncertainty of beliefs. If the HDI is wide, then beliefs are uncertain. If the HDI is narrow, then beliefs are fairly certain.' To check the convergence and fit of the HDI simulations, the Brooks-Gelman-Rubin scale reduction factor for both groups should be smaller than 1.1 (For `r xlabel` : `r ifelse (InAHurry!="YES",Rhat[1], "NOT CALCULATED")`, and for `r ylabel`: `r ifelse (InAHurry!="YES",Rhat[2], "NOT CALCULATED")`) and the effective sample size should be larger than 10000 (for `r xlabel`:  `r ifelse (InAHurry!="YES",round(neff[1]), "NOT CALCULATED")`, and for `r ylabel`: `r ifelse (InAHurry!="YES",round(neff[2]), "NOT CALCULATED")`). Thus, the HDI simulation is `r ifelse (InAHurry!="YES", BESTacceptable, "NOT CALCULATED")`.
+
+**Results**
+
+The JZS BF~10~ (with r scale = `r BFrscale`) = `r round(BF, digits=2)`. This data provides `r evidence`. The posterior mean difference is `r ifelse(InAHurry!="YES",round(mu, digits=2), "NOT CALCULATED")`, `r 100*ConfInt`% HDI = [`r ifelse(InAHurry!="YES",round(HDI_l, digits=2), "NOT CALCULATED")`; `r ifelse(InAHurry!="YES",round(HDI_u, digits=2), "NOT CALCULATED")`].
+
+###Robust statistics
+
+Here, a bootstrapped version of Yuen's (1974) adaptation of Welch's two-sample test with trimmed means and windsorized variances is used that returns symmetric confidence intervals (see Keselman, Othman, Wilcox, & Fradette, 2004). 
+
+**Results**
+
+The 20% trimmed mean `r ylabelstring` of participants in the `r xlabel` condition (*M* = `r round(yuentest$est.1, digits = 2)`) was `r direction` the 20% trimmed mean of participants in the `r ylabel` condition (*M* = `r round(yuentest$est.2, digits = 2)`). The difference in `r ylabelstring` between the conditions (*M* = `r round(yuentest$est.dif, digits = 2)`, `r 100*ConfInt`% symmetric CI [`r round(yuentest$ci[1], digits = 2)`;`r round(yuentest$ci[2], digits = 2)`]) was analyzed using the Yuen-Welch test for 20% trimmed means, *t* = `r round(yuentest$test.stat, digits = 2)`, *p* `r ifelse(yuentest$p.value>=0.001," = ", " < ")` `r ifelse(yuentest$p.value>=0.001,formatC(round(yuentest$p.value, digits = 3)), "0.001")`, Robust *d~t~* = `r ifelse(InAHurry!="YES",round(d_robust, digits = 2),"NOT CALCULATED")`,  `r 100*ConfInt`% CI = [`r ifelse(InAHurry!="YES",round(d_robust_ci_l, digits = 2), "NOT CALCULATED")`;`r ifelse(InAHurry!="YES",round(d_robust_ci_u, digits = 2), "NOT CALCULATED")`]). The observed data is `r surprising2` under the assumption that the null-hypothesis is true.
+
+
+**So all 3 methods above retain the null-hypothesis and concluded that there is not evidence of a significant relationship between participants' correctly/incorrectly judging light intensity and their ensuing confidence that their judgment was correct. This is good news because it argues against the notion that a "placebo" effect or a participant "expectancy effect" was at play due to non-blinded light conditions. However there is one more analysis we can do to test this issue which is reported directly below......**
+
+```{r, echo=FALSE, warning=FALSE}
+###############################################################################################################################
+###############################################################################################################################
+###############################################################################################################################
+```
+
+###Multi-level model for the effects of Light, Correct/Incorrect light judgment, and their interaction, on change in subjective sleepiness before vs after light exposure (KSS_BeforeMinusAfter)
+
+**If there was a "placebo" effect or a participant "expectancy effect" at play due to non-blinded light conditions, then participants who correctly identified the the light conditions should show greater change in subjective sleepiness before vs after light exposure. Particularly for the High Light vs Low Light intensity conditions**
+
+Subjective sleepiness was measured with he Karolinska Sleepiness Scale (KSS) - a 9-point Likert scale based on a self-reported subjective assessment of drowsiness at the time.
+
+```{r, echo=FALSE, warning=FALSE}
+
+#lme4
+no_fixed_effects<-lmer(KSS_BeforeMinusAfter ~ 1 + (1 | LightCondOrder/ID) + (1 |Light), data = data_ParticipantLevel, REML=FALSE, na.action = na.omit)
+Light<-update(no_fixed_effects, .~. + Light)
+LightCondsGuessedCorrectly<-update(Light, .~. + LightCondsGuessedCorrectly)
+Light_byLightCondsGuessedCorrectly<-update(LightCondsGuessedCorrectly, .~. + Light:LightCondsGuessedCorrectly)
+anova(no_fixed_effects, Light, LightCondsGuessedCorrectly, Light_byLightCondsGuessedCorrectly)
+
+```
+
+**Check assumptions for KSS sleepiness model by plotting residuals:**
+```{r, echo=FALSE, warning=FALSE}
+residuals_KSS_Light_CondsGuessedCorrectly=residuals(Light_byLightCondsGuessedCorrectly)
+
+plot(residuals_KSS_Light_CondsGuessedCorrectly)
+qqnorm(residuals_KSS_Light_CondsGuessedCorrectly)
+qqline(residuals_KSS_Light_CondsGuessedCorrectly)
+hist(residuals_KSS_Light_CondsGuessedCorrectly)
+
+```
+
+**So the multilevel model above shows firstly that light condition (p=0.6877) did not cause a significant on change in subjective sleepiness before after Light exposure. It is perhaps surprising that Light intensity did not influence reported subjective sleepiness; however given no effect of light Judgment Accuracy on subjective sleepiness, a problematic participant expectancy effect due to the light manipulation is unlikely.**
+
+**There was no effect of wether participants reported the light conditions correctly on subjective sleepiness (p=0.5898), and whether or not participants of reporting the light conditions correctly had no influence on the effect of Light on their subjectiveness sleepiness (p=0.5394). This is great as it argues against any placebo or participant expectancy effect. It there was a 'participant expectancy effect' due to the participants noticing the light manipulation, then we would have seen a Light x LightCondsGuessedCorrectly interaction on their subjectiveness sleepiness**
+
+### Summary of Light Manipulation Check
+
+**So to summarise, it seems very unlikely that a 'placebo' effect or a 'participant expectancy effect' due to non-blinded light conditions could be at play here, due to the following points:**
+
+* Participants were not told that the light conditions were changing at all over the different testing sessions.
+* 50% of participants correctly reported the different light condition orders
+* There is no relationship between participants' correctly/incorrectly reporting light intensity and their ensuing confidence that their judgment was correct
+* Whether or not participants guessed the light condition order correctly, had no relationship on the change in subjective sleepiness scores after each light condition, arguing strongly against any 'participant expectance' or placebo effect.
+
+Unfortunately there was no relationship between Light condition and change in subjective sleepiness, however this does not mean there will be no effect of light condition on behavioural and electrophysiological markers of spatial attention, as these may be more sensitive to the light manipulation. The key conclusion to come from the Light Manipulation Check analyses above is that it is very unlikely any 'participant expectance' or placebo effects were at play due to the light manipulation
+
+
+
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+
+
+###Supplementary figure 1
+
+There is a significant Hemifield x TOT interaction on RTs, reflecting an effect whereby responses are faster to left than right hemifield targets during the first half of the ~40min session, but this left-hemifield advantage disappears during the second half of the session. This is consistent witht the rightward shift in spatial attention bias over time-on-task reported in many previous studies (e.g. Newman et al 2013). This effect is probably not very relevant for the current study since the effect is not moderated by Light. So will not bother breaking this interaction down and will probably not bother reporting in the paper. Could put it in the supplementary section maybe if we want, if so here is the plot:  
+```{r, echo=FALSE, warning=FALSE}
+
+ggplot(data, aes(x=data$ValidTrialNum, y=data$RT,fill=Hemifield,colour=Hemifield)) +
+    stat_smooth(method="glm",level = 0.95,size=1) + # Add a glm smoothed fit curve with 95% confidence region around the three light conditions
+    scale_fill_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("#999999", "black")) +
+    scale_colour_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("black", "black")) +
+    ylab("RT (ms)") +  xlab("Time On Task (336 trials)") + coord_cartesian(ylim = c(470, 525))+
+    theme(axis.title.x = element_text(face="bold", size=14),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=14),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=14, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+
+
+png("SupplementaryFigure2.png",  width = 10*600, height = 5*600, units = "px", res = 600)
+
+ggplot(data, aes(x=data$ValidTrialNum, y=data$RT,fill=Hemifield,colour=Hemifield)) +
+    stat_smooth(method="glm",level = 0.95,size=1) + # Add a glm smoothed fit curve with 95% confidence region around the three light conditions
+    scale_fill_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("#999999", "black")) +
+    scale_colour_manual(name="Target\nHemifield",  breaks=c("Left", "Right"), labels=c(" Left", " Right"), guide = guide_legend(reverse=TRUE), values=c("black", "black")) +
+    ylab("RT (ms)") +  xlab("Time On Task (336 trials)") + coord_cartesian(ylim = c(470, 525))+
+    theme(axis.title.x = element_text(face="bold", size=14),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=14),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=14, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+dev.off()
+```
+
+
+##Higher light intensity suppresses the effect of RIGHT HEMISPHERE alpha-power on forthcoming RTs 
+```{r, echo=FALSE, message=FALSE}
+data2<-data[!data$Artefact500msPre,]
+data2<-data2[data2$PreAlphaPower_RightHemi!=0,]
+
+########### Log transform PreAlphaPower_RightHemi, but only to remove outliers - 
+#No need to log transform PreAlphaPower_RightHemi when it is a predictor. Linear lodels only assume normality of the dependent variable, not of the predictors:
+data2$log_PreAlphaPower_RightHemi<-log(data2$PreAlphaPower_RightHemi) #log
+
+#####Z-score each participant's log_PreAlphaPower_RightHemi data2 inside Light Condition####
+data2$IDbyLight<-interaction(data2$ID, data2$Light) #ID by Light factor (splits data2 up according to session)
+#calculate mean and sd 
+m <- tapply(data2$log_PreAlphaPower_RightHemi,data2$IDbyLight,mean,na.rm=T)
+s <- sqrt(tapply(data2$log_PreAlphaPower_RightHemi,data2$IDbyLight,var,na.rm=T))
+#calculate log_PreAlphaPower_RightHemi.Z and save it inside data2.frame
+data2$log_PreAlphaPower_RightHemi.Z <- (data2$log_PreAlphaPower_RightHemi-m[data2$IDbyLight])/s[data2$IDbyLight]
+#check that Z scores have mean=0 and std=1 
+log_PreAlphaPower_RightHemi.Z_checker <- ddply(data2, c("ID", "Light"), summarise,
+               N    = length(log_PreAlphaPower_RightHemi.Z),
+               mean = round(mean(log_PreAlphaPower_RightHemi.Z)),
+               sd   = sd(log_PreAlphaPower_RightHemi.Z ),
+               se   = sd / sqrt(N) )
+##Remove trials where absolute log_PreAlphaPower_RightHemi.Z>3 (i.e. remove outlier log_PreAlphaPower_RightHemis)
+data2<-data2[!abs(data2$log_PreAlphaPower_RightHemi.Z)>3,]
+########### 
+
+#Make a function to centre PreAlphaPower_RightHemi - other wise lmer() throws a warning suggesting we re-scale variables 
+c. <- function (x) scale(x, scale = FALSE)
+
+############ model the effects
+summary(RT_PreAlphaPower_RightHemi_Final<-lmerTest::lmer(RT ~ 1 + Hemifield*Light + Light*c.(PreAlphaPower_RightHemi) + (1 | LightCondOrder/ID) + (1 | ITI) + (1 | MotionDirection) + (1 | Quadrant) + (0 + Hemifield | ID) +  (0 + c.(PreAlphaPower_RightHemi) | ID), data = data2, REML=FALSE, na.action = na.exclude))
+```
+
+
+
+###Light x PreAlphaPower_RightHemi###
+
+**Break down the Light x PreAlphaPower_RightHemi effect with pairwise comparisons and plot it:**
+
+```{r, echo=FALSE, message=FALSE}
+
+summary(RT_PreAlphaPower_RightHemi_Final)
+
+
+contrast.matrix_LightbyPreAlphaPower_RightHemi<-rbind(
+    "LightLow:PreAlphaPower_RightHemi vs LightMedium:PreAlphaPower_RightHemi"  =c(0,0,0,0,0,0,0,1,0),
+    "LightLow:PreAlphaPower_RightHemi vs LightHigh:PreAlphaPower_RightHemi"    =c(0,0,0,0,0,0,0,0,1),
+    "LightMedium:PreAlphaPower_RightHemi vs LightHigh:PreAlphaPower_RightHemi" =c(0,0,0,0,0,0,0,-1,1))
+
+summary(glht(RT_PreAlphaPower_RightHemi_Final, contrast.matrix_LightbyPreAlphaPower_RightHemi))
+
+
+require(effects)
+
+levels(data2$Light) <- c("Low(~50 lux)", "Medium(~350 lux)", "High(~1400lux)")
+
+eff.LightbyPreAlphaPower_RightHemi <- Effect(c("Light", "PreAlphaPower_RightHemi"), RT_PreAlphaPower_RightHemi_Final, xlevels=list(PreAlphaPower_RightHemi=c(0,1,2,5,10)))
+
+# floor(max(data2$PreAlphaPower_RightHemi))
+
+plot_RT_by_Light_and_PreAlphaPower_RightHemi<-plot(eff.LightbyPreAlphaPower_RightHemi, layout=c(3,1), main=NULL, rug=F, multiline =F, alternating=T,ylim=c(445,585),ticks.x=NULL,x.var="PreAlphaPower_RightHemi", xlab="Pre-target parieto-occipital Alpha Power (uV)", ylab="Response-time (ms)")
+
+#Plot Density histograms of PreAlphaPower_RightHemi observations:
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+require(lattice) 
+plot_hist_PreAlphaPower_RightHemi_by_light<- histogram(~ PreAlphaPower_RightHemi | Light, data=data2, strip = FALSE, layout=c(3,1), main=NULL, ylab = "Observations", xlab=NULL, xlim=c(0,10), scales = list(x = list(draw = FALSE)),col=cbPalette,ylim=c(0,NA),type = "count", par.settings = list(axis.line = list(col = 0)),
+           panel=function(x, col=col,...){
+    panel.histogram(x,col=col[packet.number()],...) #gets color for each panel
+    })
+
+# floor(max(data2$PreAlphaPower_RightHemi)) -  can use this in xlim=c(-0.2,10) above instead of  10
+
+
+
+print(plot_hist_PreAlphaPower_RightHemi_by_light, position=c(0.02, 0.72, 1,    1), more=TRUE, newpage = F)
+print(plot_RT_by_Light_and_PreAlphaPower_RightHemi, position=c(0.02,  0, 1, 0.80),more=FALSE,save.object=T)
+
+
+
+```
+
+
+##Look at Coeficient of Variation of Alpha Power as a function of Light and Hemisphere
+
+```{r, echo=FALSE, warning=FALSE}
+# install.packages("retimes")
+require(retimes)
+
+#Make Hemisphere a factor:
+DF<-data.frame(data$ID, data$Light, data$ITI, data$Hemifield, data$PreAlphaPower_LeftHemi,data$PreAlphaPower_RightHemi,data$ValidTrialNum, data$LightCondOrder, data$Artefact500msPre)
+names(DF) <- c("ID", "Light",    "ITI",	"Hemifield","PreAlphaPower_LeftHemi","PreAlphaPower_RightHemi","ValidTrialNum", "LightCondOrder","Artefact500msPre")
+
+DF$LeftHemi<-rep("Left",length(DF[,1]))
+DF$RightHemi<-rep("Right",length(DF[,1]))               
+DF_LeftHemi<-subset(DF, select=c(ID, Light, ITI, Hemifield,PreAlphaPower_LeftHemi,LeftHemi,ValidTrialNum,LightCondOrder,Artefact500msPre))
+DF_RightHemi<-subset(DF, select=c(ID, Light, ITI, Hemifield,PreAlphaPower_RightHemi,RightHemi,ValidTrialNum,LightCondOrder,Artefact500msPre))
+names(DF_LeftHemi)[names(DF_LeftHemi)=="LeftHemi"] <- "Hemisphere"
+names(DF_RightHemi)[names(DF_RightHemi)=="RightHemi"] <- "Hemisphere"
+names(DF_LeftHemi)[names(DF_LeftHemi)=="PreAlphaPower_LeftHemi"] <- "PreAlphaPower"
+names(DF_RightHemi)[names(DF_RightHemi)=="PreAlphaPower_RightHemi"] <- "PreAlphaPower"
+DF<-rbind(DF_LeftHemi,DF_RightHemi)
+rm(DF_LeftHemi,DF_RightHemi)
+DF$Hemisphere <- factor(DF$Hemisphere)
+
+DF<-DF[!DF$Artefact500msPre,]
+
+DF<-DF[DF$PreAlphaPower!=0,]
+
+#Remove trials with missing values :
+DF<-DF[complete.cases(DF),] 
+
+
+
+DF$log_PreAlphaPower<-log(DF$PreAlphaPower) #log
+
+#Kick out outliers
+#####Z-score each participant's log_PreAlphaPower inside Light Condition and Hemisphere####
+DF$IDbyLightbyHemisphere<-interaction(DF$ID, DF$Light, DF$Hemisphere) #ID by Light factor (splits DF up according to session)
+#calculate mean and sd 
+m <- tapply(DF$log_PreAlphaPower,DF$IDbyLightbyHemisphere,mean,na.rm=T)
+s <- sqrt(tapply(DF$log_PreAlphaPower,DF$IDbyLightbyHemisphere,var,na.rm=T))
+#calculate log_PreAlphaPower.Z and save it inside DF.frame
+DF$log_PreAlphaPower.Z <- (DF$log_PreAlphaPower-m[DF$IDbyLightbyHemisphere])/s[DF$IDbyLightbyHemisphere]
+#check that Z scores have mean=0 and std=1 
+log_PreAlphaPower.Z_checker <- ddply(DF, c("ID", "Light","Hemisphere"), summarise,
+               N    = length(log_PreAlphaPower.Z),
+               mean = round(mean(log_PreAlphaPower.Z)),
+               sd   = sd(log_PreAlphaPower.Z ),
+               se   = sd / sqrt(N) )
+##Remove trials where absolute log_PreAlphaPower.Z>3 (i.e. remove outlier log_PreAlphaPowers)
+DF<-DF[!abs(DF$log_PreAlphaPower.Z)>3,]
+
+
+
+DF$IDbyLightbyHemisphere<-interaction(DF$ID, DF$Light, DF$Hemisphere) #ID by Light factor (splits DF up according to session)
+
+PreAlphaPower_CofV <- ddply(DF, c("ID", "Light", "Hemisphere"), summarise,
+                            N    = length(PreAlphaPower),
+                            mean = round(mean(PreAlphaPower)),
+                            sd   = sd(PreAlphaPower),
+                            se   = sd / sqrt(N),
+                            CofV = sd(PreAlphaPower)/mean(PreAlphaPower),
+                            mu = ((timefit(PreAlphaPower))@par)[1],
+                            sigma = ((timefit(PreAlphaPower))@par)[2],
+                            tau = ((timefit(PreAlphaPower))@par)[3],
+                            sigmaCofV = ((timefit(PreAlphaPower))@par)[2]/((timefit(PreAlphaPower))@par)[1],
+                            tauCofV = ((timefit(PreAlphaPower))@par)[3]/((timefit(PreAlphaPower))@par)[1])
+
+
+############ model the effects of Light, and Hemisphere on Pre-target Alpha Power Coeficient of Variation########### 
+no_fixed_effects<-lmer(tauCofV ~ 1 + (1 | ID/Hemisphere) + (1 |Light), data = PreAlphaPower_CofV,  na.action = na.omit, REML=F)
+Light<-update(no_fixed_effects, .~. + Light)
+Hemisphere<-update(Light, .~. + Hemisphere)
+LightbyHemisphere<-update(Hemisphere, .~. + Light:Hemisphere)
+
+anova(no_fixed_effects, Light, Hemisphere, LightbyHemisphere)
+
+
+residuals_LightbyHemisphere=residuals(LightbyHemisphere)
+plot(residuals_LightbyHemisphere)
+qqnorm(residuals_LightbyHemisphere)
+qqline(residuals_LightbyHemisphere)
+hist(residuals_LightbyHemisphere)
+
+
+require(effects)
+
+plot(allEffects(LightbyHemisphere))
+
+
+
+
+
+
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(PreAlphaPower_CofV, measurevar="tauCofV", withinvars=c("Light", "Hemisphere"), idvar="ID")
+ggplot(plotdata, aes(x=Hemisphere, y=tauCofV, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=tauCofV-ci, ymax=tauCofV+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) +  coord_cartesian(ylim = c(0, 1)) +
+    theme(axis.title.x = element_text(face="bold", size=12),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=12),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=12, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+
+
+source("summarySE.R") 
+source("summarySEwithin.R") #function to calculate Std.Er of mean
+source("normDataWithin.R")
+cbPalette <- c("#333333", "#999999", "#CCCCCC")#grey colours
+plotdata <- summarySEwithin(PreAlphaPower_CofV, measurevar="CofV", withinvars=c("Light", "Hemisphere"), idvar="ID")
+ggplot(plotdata, aes(x=Hemisphere, y=CofV, fill=Light)) +
+    geom_bar(position=position_dodge(.9), colour="Black", stat="identity") +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=CofV-ci, ymax=CofV+ci)) + #can change "se" to "ci" if I want to use 95%ci instead
+    geom_hline(yintercept=0) +  coord_cartesian(ylim = c(0, 1)) +
+    theme(axis.title.x = element_text(face="bold", size=12),
+          axis.text.x  = element_text(face="bold", angle=0,  size=12)) +
+    theme(axis.title.y = element_text(face="bold", size=12),
+          axis.text.y  = element_text(angle=0, vjust=0.5, size=12)) +
+    theme(legend.title = element_text(size=12, face="bold")) +
+    theme(legend.text = element_text(size = 12, face = "bold")) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+```
+
+
+##Versions of packages used
+```{r, echo=FALSE, warning=FALSE}
+sessionInfo()
+```
