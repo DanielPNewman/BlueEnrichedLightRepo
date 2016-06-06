@@ -253,8 +253,8 @@ hist_RT + facet_wrap(~ ID)
 A<-data$Hemifield=="Left"
 data$PostAlpha_c[A]<-data$RightHemi_PostAlpha[A]
 data$PostAlpha_c[!A]<-data$LeftHemi_PostAlpha[!A]
-data$PostAlpha_i[!A]<-data$LeftHemi_PostAlpha[!A]
-data$PostAlpha_i[A]<-data$RightHemi_PostAlpha[A]
+data$PostAlpha_i[!A]<-data$RightHemi_PostAlpha[!A]
+data$PostAlpha_i[A]<-data$LeftHemi_PostAlpha[A]
 rm(A)
 
 control=lmerControl(optCtrl=list(maxfun=20000)) #increase number of interations performed by lmer() to fit the model 
