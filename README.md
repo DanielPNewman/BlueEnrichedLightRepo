@@ -7,10 +7,14 @@ The paradigm was run on a 32-bit windows XP machine using MATLAB (MathWorks) and
 
 The paradigm script is "DiscreteDots4Patch4_22_05_2014.m" The other scripts/functions in the "Paradigm Files" folder are called by  "DiscreteDots4Patch4_22_05_2014.m" 
 
+
 ##To reproduce inferential statistics and plots:
 Run Blue_Enriched_light_Markdown.Rmd using R with Rstudio
 
 ##Full Analysis Pipeline:
+
+###Raw Data
+The raw data are available [here on FigShare][1] and are open access and available under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 International License.
 
 ###In Matlab, run scripts to process raw eeg files:
 (note: can skip steps 1 and 2 because they are just for finding noisy eeg channeles, which have already been found listed in 'runafew_BL.m' for step 3)
@@ -29,3 +33,6 @@ Run Blue_Enriched_light_Markdown.Rmd using R with Rstudio
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/3.0/"><img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-nc-sa/3.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/3.0/">Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License</a>.
 
+
+[1]: https://dx.doi.org/10.4225/03/574CEA1FAFB69
+ 
