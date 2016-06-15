@@ -2,6 +2,8 @@
 Code for my short wavelength (blue) light /attention experiment, conducted at Monash University. 
 Includes paradigm files (matlab/psychtoolbox), data processing/analysis files (matlab/eeglab) and Inferential Statistics/data analysis files (R)
 
+**Newman**, D.P., Lockley, S.W., Loughnane, G.M., Martins, A.C.P., Abe, R., Zoratti, M.T.R., Kelly, S.P., O’Neill, M.H., Rajaratnam, S.M.W., O’Connell, R.G., & Bellgrove, M.A. (2016). [Ocular exposure to blue-enriched light has an asymmetric influence on neural activity and spatial attention.][7] *Scientific Reports*. 6, 27754. doi:10.1038/srep27754. 
+
 ##Paradigm Files:
 The paradigm was run on a 32-bit windows XP machine using MATLAB (MathWorks) and the Psychophysics Toolbox extensions (Brainard, 1997; Cornelissen, Peters, & Palmer, 2002; Pelli, 1997).
 
